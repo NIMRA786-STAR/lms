@@ -7,7 +7,7 @@ if (!cached) {
 }
 
 const connectDB = async () => {
-  // Agar connection pehle se hai aur readyState 1 (connected) hai, to wahi use karo
+  // Agar connection pehle se zinda hai (readyState 1), to wahi use karo
   if (cached.conn && mongoose.connection.readyState === 1) {
     return cached.conn;
   }
@@ -16,8 +16,7 @@ const connectDB = async () => {
   if (!cached.promise) {
     cached.promise = mongoose.connect(process.env.MONGODB_URI, {
       maxPoolSize: 5,
-      serverSelectionTimeoutMS: 5000
-      // bufferCommands hata do, default true rehne do
+      serverSelectionTimeoutMS: 5000,
     }).then((m) => {
       console.log('✅ MongoDB Connected');
       return m;
