@@ -1,146 +1,98 @@
 /**
  * Error Handling Middleware for Express.js
- * Handles all errors in the application
+ * FIXED: Removed unused validationResult import (was causing ReferenceError)
  */
 
-// Custom error class for API errors
 class ApiError extends Error {
   constructor(statusCode, message, isOperational = true) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = isOperational;
     this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
-    
     Error.captureStackTrace(this, this.constructor);
   }
 }
 
-// 404 Not Found Middleware
 const notFound = (req, res, next) => {
   const error = new Error(`Not Found - ${req.originalUrl}`);
   res.status(404);
   next(error);
 };
 
-// Global Error Handler
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  // Log error for debugging
-  console.error('❌ Error:', {
-    message: err.message,
-    stack: err.stack,
-    status: err.status || 500,
-    method: req.method,
-    url: req.url,
-    body: req.body,
-    params: req.params,
-    query: req.query,
-    user: req.user?._id
-  });
-
-  // Mongoose Bad ObjectId (CastError)
-  if (err.name === 'CastError') {
-    const message = `Invalid ${err.path}: ${err.value}`;
-    error = new ApiError(400, message);
+  // Log for debugging
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('❌ Error:', {
+      message: err.message,
+      status: err.status || 500,
+      method: req.method,
+      url: req.url,
+      user: req.user?._id
+    });
+  } else {
+    console.error('❌ Error:', err.message);
   }
 
-  // Mongoose Duplicate Key Error (11000)
+  // Mongoose Bad ObjectId
+  if (err.name === 'CastError') {
+    error = new ApiError(400, `Invalid ${err.path}: ${err.value}`);
+  }
+
+  // Mongoose Duplicate Key
   if (err.code === 11000) {
     const field = Object.keys(err.keyPattern)[0];
-    const message = `Duplicate field value entered for "${field}". Please use another value.`;
-    error = new ApiError(400, message);
+    error = new ApiError(400, `Duplicate value for "${field}". Please use another.`);
   }
 
-  // Mongoose Validation Error
+  // Mongoose Validation
   if (err.name === 'ValidationError') {
     const errors = Object.values(err.errors).map(val => val.message);
-    const message = `Invalid input data: ${errors.join(', ')}`;
-    error = new ApiError(400, message);
+    error = new ApiError(400, `Invalid input: ${errors.join(', ')}`);
   }
 
   // JWT Errors
   if (err.name === 'JsonWebTokenError') {
-    const message = 'Invalid token. Please log in again.';
-    error = new ApiError(401, message);
+    error = new ApiError(401, 'Invalid token. Please log in again.');
   }
-
   if (err.name === 'TokenExpiredError') {
-    const message = 'Token expired. Please log in again.';
-    error = new ApiError(401, message);
+    error = new ApiError(401, 'Token expired. Please log in again.');
   }
 
-  // Multer Errors (File Upload)
+  // Multer Errors
   if (err.code === 'LIMIT_FILE_SIZE') {
-    const message = 'File too large. Maximum size is 5MB.';
-    error = new ApiError(400, message);
+    error = new ApiError(400, 'File too large. Maximum size is 5MB.');
   }
-
   if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-    const message = 'Unexpected field in file upload.';
-    error = new ApiError(400, message);
+    error = new ApiError(400, 'Unexpected field in file upload.');
   }
 
-  // Send Response
+  // Rate limit
+  if (err.statusCode === 429) {
+    error = new ApiError(429, err.message || 'Too many requests');
+  }
+
   const statusCode = error.statusCode || err.status || 500;
   const message = error.message || err.message || 'Internal Server Error';
 
-  // Development vs Production Error Response
-  if (process.env.NODE_ENV === 'development') {
-    res.status(statusCode).json({
-      success: false,
-      message: message,
-      status: statusCode,
-      stack: err.stack,
-      error: err
-    });
-  } else {
-    // Production - Don't leak error details
-    res.status(statusCode).json({
-      success: false,
-      message: statusCode === 500 ? 'Internal Server Error' : message,
-      status: statusCode
-    });
-  }
+  res.status(statusCode).json({
+    success: false,
+    message: statusCode === 500 && process.env.NODE_ENV === 'production'
+      ? 'Internal Server Error'
+      : message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
 };
 
-// Async Handler to avoid try-catch blocks
 const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
-};
-
-// Rate Limit Error Handler
-const rateLimitErrorHandler = (err, req, res, next) => {
-  if (err.message === 'Too many requests, please try again later.') {
-    return res.status(429).json({
-      success: false,
-      message: 'Too many requests from this IP, please try again after 15 minutes.'
-    });
-  }
-  next(err);
-};
-
-// Validation Error Handler for Express Validator
-const validationErrorHandler = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      errors: errors.array().map(err => ({
-        field: err.param,
-        message: err.msg
-      }))
-    });
-  }
-  next();
 };
 
 module.exports = {
   ApiError,
   notFound,
   errorHandler,
-  asyncHandler,
-  rateLimitErrorHandler,
-  validationErrorHandler
+  asyncHandler
 };

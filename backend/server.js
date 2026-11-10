@@ -1,70 +1,124 @@
-const express = require('express');
 const dotenv = require('dotenv');
-const cors = require('cors');
-const connectDB = require('./config/db');
-
-// Load env vars
 dotenv.config();
 
-// Connect to database
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+
+const connectDB = require('./config/db');
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+const { apiLimiter } = require('./middleware/security');
+
 connectDB();
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ═══════════════════════════════════════════════════════════
+// TRUST PROXY (needed for rate limiting behind Vercel)
+// ═══════════════════════════════════════════════════════════
+app.set('trust proxy', 1);
 
-// Request logging
+// ═══════════════════════════════════════════════════════════
+// SECURITY HEADERS
+// ═══════════════════════════════════════════════════════════
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false // disable CSP for API-only; enable if serving HTML
+}));
+
+// ═══════════════════════════════════════════════════════════
+// CORS
+// ═══════════════════════════════════════════════════════════
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5000',
+  process.env.CORS_ORIGIN
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true
+}));
+
+// ═══════════════════════════════════════════════════════════
+// STRIPE WEBHOOK — MUST be BEFORE express.json()
+// (Stripe needs raw body to verify signature)
+// ═══════════════════════════════════════════════════════════
+const { stripeWebhook } = require('./controllers/paymentController');
+app.post(
+  '/api/payment/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeWebhook
+);
+
+// ═══════════════════════════════════════════════════════════
+// BODY PARSERS (for all OTHER routes — AFTER webhook)
+// ═══════════════════════════════════════════════════════════
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ═══════════════════════════════════════════════════════════
+// DATA SANITIZATION (NoSQL injection + HTTP param pollution)
+// ═══════════════════════════════════════════════════════════
+app.use(mongoSanitize());
+app.use(hpp());
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL RATE LIMIT (applies to all /api routes)
+// ═══════════════════════════════════════════════════════════
+app.use('/api', apiLimiter);
+
+// ═══════════════════════════════════════════════════════════
+// REQUEST LOGGER (dev only)
+// ═══════════════════════════════════════════════════════════
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  }
   next();
 });
 
-// Routes
+// ═══════════════════════════════════════════════════════════
+// ROUTES
+// ═══════════════════════════════════════════════════════════
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/courses', require('./routes/courseRoutes'));
 app.use('/api/enroll', require('./routes/enrollRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/payment', require('./routes/paymentRoutes'));
 
-// Home route
+// ═══════════════════════════════════════════════════════════
+// HEALTH CHECK
+// ═══════════════════════════════════════════════════════════
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Learning Management System API',
+    message: 'LMS API is running',
     version: '1.0.0',
-    endpoints: {
-      auth: '/api/auth',
-      users: '/api/users',
-      courses: '/api/courses',
-      enroll: '/api/enroll',
-      admin: '/api/admin'
-    }
+    env: process.env.NODE_ENV || 'development'
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Cannot ${req.method} ${req.url} - Route not found`
-  });
-});
+// ═══════════════════════════════════════════════════════════
+// ERROR HANDLERS (must be LAST)
+// ═══════════════════════════════════════════════════════════
+app.use(notFound);
+app.use(errorHandler);
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal Server Error'
-  });
-});
+// ═══════════════════════════════════════════════════════════
+// START SERVER (local dev only — Vercel uses exported app)
+// ═══════════════════════════════════════════════════════════
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server on http://localhost:${PORT}`));
+}
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📚 API Documentation: http://localhost:${PORT}`);
-});
+module.exports = app;
