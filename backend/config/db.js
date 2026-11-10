@@ -7,13 +7,17 @@ if (!cached) {
 }
 
 const connectDB = async () => {
-  if (cached.conn) return cached.conn;
+  // Agar connection pehle se hai aur readyState 1 (connected) hai, to wahi use karo
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
 
+  // Agar connection ban raha hai to uska wait karo
   if (!cached.promise) {
     cached.promise = mongoose.connect(process.env.MONGODB_URI, {
       maxPoolSize: 5,
       serverSelectionTimeoutMS: 5000
-      // bufferCommands: false  ← YEH LINE HATA DO
+      // bufferCommands hata do, default true rehne do
     }).then((m) => {
       console.log('✅ MongoDB Connected');
       return m;
