@@ -11,7 +11,12 @@ const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 const { apiLimiter } = require('./middleware/security');
 
-connectDB();
+// ═══════════════════════════════════════════════════════════
+// CONNECT TO MONGODB (with error handling)
+// ═══════════════════════════════════════════════════════════
+connectDB().catch((err) => {
+  console.error('❌ DB Connection Failed:', err.message);
+});
 
 const app = express();
 
@@ -25,7 +30,7 @@ app.set('trust proxy', 1);
 // ═══════════════════════════════════════════════════════════
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false // disable CSP for API-only; enable if serving HTML
+  contentSecurityPolicy: false
 }));
 
 // ═══════════════════════════════════════════════════════════
@@ -39,7 +44,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error(`Origin ${origin} not allowed by CORS`));
@@ -49,7 +53,6 @@ app.use(cors({
 
 // ═══════════════════════════════════════════════════════════
 // STRIPE WEBHOOK — MUST be BEFORE express.json()
-// (Stripe needs raw body to verify signature)
 // ═══════════════════════════════════════════════════════════
 const { stripeWebhook } = require('./controllers/paymentController');
 app.post(
@@ -59,19 +62,19 @@ app.post(
 );
 
 // ═══════════════════════════════════════════════════════════
-// BODY PARSERS (for all OTHER routes — AFTER webhook)
+// BODY PARSERS
 // ═══════════════════════════════════════════════════════════
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ═══════════════════════════════════════════════════════════
-// DATA SANITIZATION (NoSQL injection + HTTP param pollution)
+// DATA SANITIZATION
 // ═══════════════════════════════════════════════════════════
 app.use(mongoSanitize());
 app.use(hpp());
 
 // ═══════════════════════════════════════════════════════════
-// GLOBAL RATE LIMIT (applies to all /api routes)
+// GLOBAL RATE LIMIT
 // ═══════════════════════════════════════════════════════════
 app.use('/api', apiLimiter);
 
@@ -108,13 +111,13 @@ app.get('/', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// ERROR HANDLERS (must be LAST)
+// ERROR HANDLERS
 // ═══════════════════════════════════════════════════════════
 app.use(notFound);
 app.use(errorHandler);
 
 // ═══════════════════════════════════════════════════════════
-// START SERVER (local dev only — Vercel uses exported app)
+// START SERVER (local dev only)
 // ═══════════════════════════════════════════════════════════
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
