@@ -1,35 +1,139 @@
-const mongoose = require('mongoose');
+// backend/server.js
+const dotenv = require('dotenv');
+dotenv.config();
 
-let cached = global.mongoose;
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
 
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
+const connectDB = require('./config/db');
+const { notFound, errorHandler } = require('./middleware/errorMiddleware');
+const { apiLimiter } = require('./middleware/security');
+
+const app = express();
+
+// ═══════════════════════════════════════════════════════════
+// TRUST PROXY (Vercel ke liye zaroori)
+// ═══════════════════════════════════════════════════════════
+app.set('trust proxy', 1);
+
+// ═══════════════════════════════════════════════════════════
+// SECURITY HEADERS
+// ═══════════════════════════════════════════════════════════
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false,
+}));
+
+// ═══════════════════════════════════════════════════════════
+// CORS
+// ═══════════════════════════════════════════════════════════
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5000',
+  process.env.CORS_ORIGIN,
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
+}));
+
+// ═══════════════════════════════════════════════════════════
+// STRIPE WEBHOOK — MUST be BEFORE express.json()
+// (Stripe needs raw body to verify signature)
+// ═══════════════════════════════════════════════════════════
+const { stripeWebhook } = require('./controllers/paymentController');
+app.post(
+  '/api/payment/webhook',
+  express.raw({ type: 'application/json' }),
+  stripeWebhook
+);
+
+// ═══════════════════════════════════════════════════════════
+// BODY PARSERS (all other routes)
+// ═══════════════════════════════════════════════════════════
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ═══════════════════════════════════════════════════════════
+// DATA SANITIZATION
+// ═══════════════════════════════════════════════════════════
+app.use(mongoSanitize());
+app.use(hpp());
+
+// ═══════════════════════════════════════════════════════════
+// GLOBAL RATE LIMIT
+// ═══════════════════════════════════════════════════════════
+app.use('/api', apiLimiter);
+
+// ═══════════════════════════════════════════════════════════
+// DATABASE CONNECTION MIDDLEWARE
+// Har request se pehle connection ensure karo (serverless-safe)
+// ═══════════════════════════════════════════════════════════
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('❌ DB Connection Failed:', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Database connection failed',
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// REQUEST LOGGER (dev only)
+// ═══════════════════════════════════════════════════════════
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  }
+  next();
+});
+
+// ═══════════════════════════════════════════════════════════
+// ROUTES
+// ═══════════════════════════════════════════════════════════
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/courses', require('./routes/courseRoutes'));
+app.use('/api/enroll', require('./routes/enrollRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/payment', require('./routes/paymentRoutes'));
+
+// ═══════════════════════════════════════════════════════════
+// HEALTH CHECK
+// ═══════════════════════════════════════════════════════════
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'LMS API is running',
+    version: '1.0.0',
+    env: process.env.NODE_ENV || 'development',
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// ERROR HANDLERS (must be LAST)
+// ═══════════════════════════════════════════════════════════
+app.use(notFound);
+app.use(errorHandler);
+
+// ═══════════════════════════════════════════════════════════
+// START SERVER (local dev only — Vercel uses exported app)
+// ═══════════════════════════════════════════════════════════
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`🚀 Server on http://localhost:${PORT}`));
 }
 
-const connectDB = async () => {
-  if (cached.conn) return cached.conn;
-
-  if (!cached.promise) {
-    cached.promise = mongoose
-      .connect(process.env.MONGODB_URI, {
-        maxPoolSize: 5,
-        serverSelectionTimeoutMS: 5000,
-        bufferCommands: false
-      })
-      .then((m) => {
-        console.log('✅ MongoDB Connected');
-        return m;
-      });
-  }
-
-  try {
-    cached.conn = await cached.promise;
-  } catch (e) {
-    cached.promise = null;
-    throw e;
-  }
-
-  return cached.conn;
-};
-
-module.exports = connectDB;
+module.exports = app;
