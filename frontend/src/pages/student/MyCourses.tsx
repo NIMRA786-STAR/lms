@@ -2,12 +2,70 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Spinner, ProgressBar, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { getCourseImage } from '../../utils/courseImages';
+import { useCourseImage } from '../../hooks/useCourseImage';
 import IconButton from '../../components/IconButton';
 import { FaPlay, FaTrash, FaBookOpen, FaSearch } from 'react-icons/fa';
 
+// ─── Sub-component for hook usage ───
+const MyCourseCard: React.FC<{
+  enrollment: any;
+  onDrop: (id: string, title: string) => void;
+}> = ({ enrollment, onDrop }) => {
+  const { src, onError } = useCourseImage(enrollment.course);
+
+  return (
+    <Card className="course-card-modern">
+      <div className="card-img-wrapper" style={{ height: 160 }}>
+        <Card.Img
+          src={src}
+          onError={onError}
+          alt={enrollment.course?.title}
+        />
+      </div>
+      <Card.Body className="p-4">
+        <div className="d-flex justify-content-between align-items-start mb-2">
+          <Card.Title className="card-title mb-0">
+            {enrollment.course?.title || 'Untitled'}
+          </Card.Title>
+          <span className={`badge ${
+            enrollment.progress === 100 ? 'bg-success' :
+            enrollment.progress > 0 ? 'bg-info' : 'bg-secondary'
+          }`}>
+            {enrollment.progress === 100 ? '✓ Done' :
+             enrollment.progress > 0 ? 'In Progress' : 'Not Started'}
+          </span>
+        </div>
+        <div className="instructor-name">
+          {enrollment.course?.instructor?.name || 'Unknown'}
+        </div>
+        <div className="mb-3">
+          <div className="d-flex justify-content-between mb-1">
+            <small className="text-muted">Progress</small>
+            <small className="fw-bold" style={{ color: '#667eea' }}>
+              {enrollment.progress || 0}%
+            </small>
+          </div>
+          <ProgressBar now={enrollment.progress || 0} className="progress-modern" />
+        </div>
+        <div className="d-flex gap-2">
+          <Link to={`/courses/${enrollment.course?._id}`}
+            className="text-decoration-none flex-grow-1">
+            <IconButton
+              icon={enrollment.progress === 100 ? FaBookOpen : FaPlay}
+              label={enrollment.progress === 100 ? 'Review' : 'Continue'}
+              variant="primary" size="sm"
+              style={{ width: '100%', justifyContent: 'center' }} />
+          </Link>
+          <IconButton icon={FaTrash} variant="danger" size="sm"
+            onClick={() => onDrop(enrollment._id, enrollment.course?.title)} />
+        </div>
+      </Card.Body>
+    </Card>
+  );
+};
+
 const MyCourses = () => {
-  const [enrollments, setEnrollments] = useState([]);
+  const [enrollments, setEnrollments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -18,19 +76,19 @@ const MyCourses = () => {
     try {
       const response = await axios.get('/api/enroll/my-courses');
       setEnrollments(response.data.data);
-    } catch (error) {
+    } catch (error: any) {
       setError(error.response?.data?.message || 'Failed to load your courses');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDropCourse = async (enrollmentId, courseTitle) => {
+  const handleDropCourse = async (enrollmentId: string, courseTitle: string) => {
     if (!window.confirm(`Drop "${courseTitle}"? You will lose all progress.`)) return;
     try {
       await axios.delete(`/api/enroll/${enrollmentId}`);
       fetchMyCourses();
-    } catch (error) {
+    } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to drop course');
     }
   };
@@ -68,49 +126,7 @@ const MyCourses = () => {
         <Row>
           {enrollments.map((enrollment) => (
             <Col key={enrollment._id} md={6} lg={4} className="mb-4">
-              <Card className="course-card-modern">
-                <div className="card-img-wrapper" style={{ height: 160 }}>
-                  <Card.Img src={getCourseImage(enrollment.course)} alt={enrollment.course?.title} />
-                </div>
-                <Card.Body className="p-4">
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <Card.Title className="card-title mb-0">
-                      {enrollment.course?.title || 'Untitled'}
-                    </Card.Title>
-                    <span className={`badge ${
-                      enrollment.progress === 100 ? 'bg-success' :
-                      enrollment.progress > 0 ? 'bg-info' : 'bg-secondary'
-                    }`}>
-                      {enrollment.progress === 100 ? '✓ Done' :
-                       enrollment.progress > 0 ? 'In Progress' : 'Not Started'}
-                    </span>
-                  </div>
-                  <div className="instructor-name">
-                    {enrollment.course?.instructor?.name || 'Unknown'}
-                  </div>
-                  <div className="mb-3">
-                    <div className="d-flex justify-content-between mb-1">
-                      <small className="text-muted">Progress</small>
-                      <small className="fw-bold" style={{ color: '#667eea' }}>
-                        {enrollment.progress || 0}%
-                      </small>
-                    </div>
-                    <ProgressBar now={enrollment.progress || 0} className="progress-modern" />
-                  </div>
-                  <div className="d-flex gap-2">
-                    <Link to={`/courses/${enrollment.course?._id}`}
-                      className="text-decoration-none flex-grow-1">
-                      <IconButton
-                        icon={enrollment.progress === 100 ? FaBookOpen : FaPlay}
-                        label={enrollment.progress === 100 ? 'Review' : 'Continue'}
-                        variant="primary" size="sm"
-                        style={{ width: '100%', justifyContent: 'center' }} />
-                    </Link>
-                    <IconButton icon={FaTrash} variant="danger" size="sm"
-                      onClick={() => handleDropCourse(enrollment._id, enrollment.course?.title)} />
-                  </div>
-                </Card.Body>
-              </Card>
+              <MyCourseCard enrollment={enrollment} onDrop={handleDropCourse} />
             </Col>
           ))}
         </Row>

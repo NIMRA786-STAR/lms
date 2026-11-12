@@ -1,20 +1,60 @@
-import React, { useState, useEffect, FormEvent, SyntheticEvent } from 'react';
+import React, { useState, useEffect, FormEvent } from 'react';
 import { Container, Row, Col, Form, Spinner, Card, InputGroup } from 'react-bootstrap';
-import { getCourseImage, getFallbackImage } from '../utils/courseImages';
+import { useCourseImage } from '../hooks/useCourseImage';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import IconButton from '../components/IconButton';
 import { FaSearch, FaTimes, FaArrowRight } from 'react-icons/fa';
 import type { Course } from '../types';
 
-// ═══════════════════════════════════════════════════════════
-// Query params for /api/courses
-// ═══════════════════════════════════════════════════════════
 interface CourseQueryParams {
   search?: string;
   category?: string;
   level?: string;
 }
+
+// ─── Sub-component so hook can be called per course ───
+const CourseCard: React.FC<{ course: Course }> = ({ course }) => {
+  const { src, onError } = useCourseImage(course);
+
+  return (
+    <Card className="course-card-modern">
+      <div className="card-img-wrapper">
+        <span className="category-badge">{course.category}</span>
+        <Card.Img
+          variant="top"
+          src={src}
+          alt={course.title}
+          onError={onError}
+        />
+      </div>
+      <Card.Body className="p-4">
+        <Card.Title className="card-title">{course.title}</Card.Title>
+        <div className="instructor-name">
+          By{' '}
+          {typeof course.instructor === 'object' && course.instructor !== null
+            ? course.instructor.name
+            : 'Unknown'}
+        </div>
+        <Card.Text className="course-description">
+          {course.description?.substring(0, 90)}…
+        </Card.Text>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <span className="price-tag">${course.price || 0}</span>
+          <span className="level-badge">{course.level || 'Beginner'}</span>
+        </div>
+        <Link to={`/courses/${course._id}`} className="text-decoration-none">
+          <IconButton
+            icon={FaArrowRight}
+            label="View Course"
+            variant="primary"
+            style={{ width: '100%', justifyContent: 'center' }}
+          />
+        </Link>
+      </Card.Body>
+    </Card>
+  );
+};
 
 const Courses: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -31,7 +71,6 @@ const Courses: React.FC = () => {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      // ✅ Properly typed params object
       const params: CourseQueryParams = {};
       if (searchTerm) params.search = searchTerm;
       if (selectedCategory && selectedCategory !== 'All') {
@@ -60,17 +99,8 @@ const Courses: React.FC = () => {
   };
 
   const categories = [
-    'All',
-    'Programming',
-    'Python',
-    'Design',
-    'Business',
-    'Marketing',
-    'SEO',
-    'Data Science',
-    'DevOps',
-    'Cybersecurity',
-    'Other',
+    'All', 'Programming', 'Python', 'Design', 'Business', 'Marketing',
+    'SEO', 'Data Science', 'DevOps', 'Cybersecurity', 'Other',
   ];
   const levels = ['', 'Beginner', 'Intermediate', 'Advanced'];
 
@@ -106,9 +136,7 @@ const Courses: React.FC = () => {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
                   {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
+                    <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </Form.Select>
               </Col>
@@ -168,46 +196,7 @@ const Courses: React.FC = () => {
         <Row>
           {courses.map((course) => (
             <Col key={course._id} md={6} lg={4} className="mb-4">
-              <Card className="course-card-modern">
-                <div className="card-img-wrapper">
-                  <span className="category-badge">{course.category}</span>
-                  <Card.Img
-                    variant="top"
-                    src={getCourseImage(course)}
-                    alt={course.title}
-                    onError={(e: SyntheticEvent<HTMLImageElement>) => {
-                      // ✅ Correctly typed image event handler
-                      const img = e.currentTarget;
-                      img.onerror = null;
-                      img.src = getFallbackImage(course);
-                    }}
-                  />
-                </div>
-                <Card.Body className="p-4">
-                  <Card.Title className="card-title">{course.title}</Card.Title>
-                  <div className="instructor-name">
-                    By{' '}
-                    {typeof course.instructor === 'object' && course.instructor !== null
-                      ? course.instructor.name
-                      : 'Unknown'}
-                  </div>
-                  <Card.Text className="course-description">
-                    {course.description?.substring(0, 90)}…
-                  </Card.Text>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <span className="price-tag">${course.price || 0}</span>
-                    <span className="level-badge">{course.level || 'Beginner'}</span>
-                  </div>
-                  <Link to={`/courses/${course._id}`} className="text-decoration-none">
-                    <IconButton
-                      icon={FaArrowRight}
-                      label="View Course"
-                      variant="primary"
-                      style={{ width: '100%', justifyContent: 'center' }}
-                    />
-                  </Link>
-                </Card.Body>
-              </Card>
+              <CourseCard course={course} />
             </Col>
           ))}
         </Row>

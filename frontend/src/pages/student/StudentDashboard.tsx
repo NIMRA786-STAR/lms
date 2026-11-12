@@ -3,16 +3,75 @@ import { Container, Row, Col, Card, Spinner, ProgressBar } from 'react-bootstrap
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
-import { getCourseImage } from '../../utils/courseImages';
+import { useCourseImage } from '../../hooks/useCourseImage';
 import IconButton from '../../components/IconButton';
 import {
-  FaGraduationCap, FaCheckCircle, FaChartLine, FaPlay, FaArrowRight, FaBook
+  FaGraduationCap, FaCheckCircle, FaChartLine, FaPlay,
+  FaArrowRight, FaBook
 } from 'react-icons/fa';
+
+// ─── Sub-components ───
+const EnrolledCourseCard: React.FC<{ enrollment: any }> = ({ enrollment }) => {
+  const { src, onError } = useCourseImage(enrollment.course);
+  return (
+    <Card className="course-card-modern">
+      <div className="card-img-wrapper" style={{ height: 160 }}>
+        <Card.Img src={src} onError={onError} alt={enrollment.course?.title} />
+      </div>
+      <Card.Body className="p-4">
+        <Card.Title className="card-title">{enrollment.course?.title || 'Untitled'}</Card.Title>
+        <div className="instructor-name">{enrollment.course?.instructor?.name || 'Unknown'}</div>
+        <div className="mb-3">
+          <div className="d-flex justify-content-between mb-1">
+            <small className="text-muted">Progress</small>
+            <small className="fw-bold" style={{ color: '#667eea' }}>
+              {enrollment.progress || 0}%
+            </small>
+          </div>
+          <ProgressBar now={enrollment.progress || 0} className="progress-modern" />
+        </div>
+        <Link to={`/courses/${enrollment.course?._id}`} className="text-decoration-none">
+          <IconButton
+            icon={enrollment.progress === 100 ? FaCheckCircle : FaPlay}
+            label={enrollment.progress === 100 ? 'Review' : 'Continue'}
+            variant="primary" size="sm"
+            style={{ width: '100%', justifyContent: 'center' }} />
+        </Link>
+      </Card.Body>
+    </Card>
+  );
+};
+
+const RecommendedCourseCard: React.FC<{ course: any }> = ({ course }) => {
+  const { src, onError } = useCourseImage(course);
+  return (
+    <Card className="course-card-modern">
+      <div className="card-img-wrapper" style={{ height: 150 }}>
+        <span className="category-badge">{course.category}</span>
+        <Card.Img src={src} onError={onError} alt={course.title} />
+      </div>
+      <Card.Body className="p-4">
+        <Card.Title className="card-title">{course.title}</Card.Title>
+        <Card.Text className="course-description">
+          {course.description?.substring(0, 70)}…
+        </Card.Text>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <span className="price-tag" style={{ fontSize: '1.1rem' }}>${course.price || 0}</span>
+          <span className="level-badge">{course.level}</span>
+        </div>
+        <Link to={`/courses/${course._id}`} className="text-decoration-none">
+          <IconButton icon={FaArrowRight} label="View Course" outline size="sm"
+            style={{ width: '100%', justifyContent: 'center' }} />
+        </Link>
+      </Card.Body>
+    </Card>
+  );
+};
 
 const StudentDashboard = () => {
   const { user } = useAuth();
-  const [enrolledCourses, setEnrolledCourses] = useState([]);
-  const [recommendedCourses, setRecommendedCourses] = useState([]);
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
+  const [recommendedCourses, setRecommendedCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalEnrolled: 0, completedCourses: 0, inProgressCourses: 0, averageProgress: 0
@@ -33,16 +92,20 @@ const StudentDashboard = () => {
       setEnrolledCourses(enrollments);
       setStats({
         totalEnrolled: enrollments.length,
-        completedCourses: enrollments.filter(e => e.progress === 100).length,
-        inProgressCourses: enrollments.filter(e => e.progress > 0 && e.progress < 100).length,
+        completedCourses: enrollments.filter((e: any) => e.progress === 100).length,
+        inProgressCourses: enrollments.filter((e: any) => e.progress > 0 && e.progress < 100).length,
         averageProgress: enrollments.length > 0
-          ? Math.round(enrollments.reduce((acc, e) => acc + (e.progress || 0), 0) / enrollments.length)
+          ? Math.round(enrollments.reduce((acc: number, e: any) => acc + (e.progress || 0), 0) / enrollments.length)
           : 0
       });
       const coursesRes = await axios.get('/api/courses');
-      const enrolledIds = enrollments.map(e => e.course?._id);
-      setRecommendedCourses(coursesRes.data.data.filter(c => !enrolledIds.includes(c._id)).slice(0, 3));
-    } catch (error) {
+      const enrolledIds = enrollments.map((e: any) => e.course?._id);
+      setRecommendedCourses(
+        coursesRes.data.data
+          .filter((c: any) => !enrolledIds.includes(c._id))
+          .slice(0, 3)
+      );
+    } catch (error: any) {
       if (error.response?.status === 401) window.location.href = '/login';
     } finally {
       setLoading(false);
@@ -105,31 +168,7 @@ const StudentDashboard = () => {
         <Row>
           {enrolledCourses.slice(0, 3).map((enrollment) => (
             <Col key={enrollment._id} md={4} className="mb-4">
-              <Card className="course-card-modern">
-                <div className="card-img-wrapper" style={{ height: 160 }}>
-                  <Card.Img src={getCourseImage(enrollment.course)} alt={enrollment.course?.title} />
-                </div>
-                <Card.Body className="p-4">
-                  <Card.Title className="card-title">{enrollment.course?.title || 'Untitled'}</Card.Title>
-                  <div className="instructor-name">{enrollment.course?.instructor?.name || 'Unknown'}</div>
-                  <div className="mb-3">
-                    <div className="d-flex justify-content-between mb-1">
-                      <small className="text-muted">Progress</small>
-                      <small className="fw-bold" style={{ color: '#667eea' }}>
-                        {enrollment.progress || 0}%
-                      </small>
-                    </div>
-                    <ProgressBar now={enrollment.progress || 0} className="progress-modern" />
-                  </div>
-                  <Link to={`/courses/${enrollment.course?._id}`} className="text-decoration-none">
-                    <IconButton
-                      icon={enrollment.progress === 100 ? FaCheckCircle : FaPlay}
-                      label={enrollment.progress === 100 ? 'Review' : 'Continue'}
-                      variant="primary" size="sm"
-                      style={{ width: '100%', justifyContent: 'center' }} />
-                  </Link>
-                </Card.Body>
-              </Card>
+              <EnrolledCourseCard enrollment={enrollment} />
             </Col>
           ))}
         </Row>
@@ -141,26 +180,7 @@ const StudentDashboard = () => {
           <Row>
             {recommendedCourses.map((course) => (
               <Col key={course._id} md={4} className="mb-4">
-                <Card className="course-card-modern">
-                  <div className="card-img-wrapper" style={{ height: 150 }}>
-                    <span className="category-badge">{course.category}</span>
-                    <Card.Img src={getCourseImage(course)} alt={course.title} />
-                  </div>
-                  <Card.Body className="p-4">
-                    <Card.Title className="card-title">{course.title}</Card.Title>
-                    <Card.Text className="course-description">
-                      {course.description?.substring(0, 70)}…
-                    </Card.Text>
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <span className="price-tag" style={{ fontSize: '1.1rem' }}>${course.price || 0}</span>
-                      <span className="level-badge">{course.level}</span>
-                    </div>
-                    <Link to={`/courses/${course._id}`} className="text-decoration-none">
-                      <IconButton icon={FaArrowRight} label="View Course" outline size="sm"
-                        style={{ width: '100%', justifyContent: 'center' }} />
-                    </Link>
-                  </Card.Body>
-                </Card>
+                <RecommendedCourseCard course={course} />
               </Col>
             ))}
           </Row>

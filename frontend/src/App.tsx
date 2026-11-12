@@ -19,6 +19,7 @@ import PaymentCancel from './pages/PaymentCancel';
 import StudentDashboard from './pages/student/StudentDashboard';
 import MyCourses from './pages/student/MyCourses';
 import StudentProfile from './pages/student/StudentProfile';
+import MyCertificates from './pages/student/MyCertificates';
 
 // Instructor
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
@@ -34,7 +35,7 @@ import AdminAnalytics from './pages/admin/AdminAnalytics';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
-function App() {
+const App: React.FC = () => {
   return (
     <AuthProvider>
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -49,60 +50,133 @@ function App() {
           <Route path="/register" element={<Register />} />
 
           {/* Payment */}
-          <Route path="/payment/success" element={
-            <PrivateRoute allowedRoles={['student']}>
-              <PaymentSuccess />
-            </PrivateRoute>
-          } />
-          <Route path="/payment/cancel" element={
-            <PrivateRoute allowedRoles={['student']}>
-              <PaymentCancel />
-            </PrivateRoute>
-          } />
+          <Route
+            path="/payment/success"
+            element={
+              <PrivateRoute allowedRoles={['student']}>
+                <PaymentSuccess />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/payment/cancel"
+            element={
+              <PrivateRoute allowedRoles={['student']}>
+                <PaymentCancel />
+              </PrivateRoute>
+            }
+          />
 
           {/* Student */}
-          <Route path="/dashboard" element={
-            <PrivateRoute allowedRoles={['student', 'instructor', 'admin']}>
-              <StudentDashboard />
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute allowedRoles={['student', 'instructor', 'admin']}>
+                <StudentDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/my-courses"
+            element={
+              <PrivateRoute allowedRoles={['student']}>
+                <MyCourses />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/student/profile"
+            element={
+              <PrivateRoute allowedRoles={['student']}>
+                <StudentProfile />
+              </PrivateRoute>
+            }
+          />
+
+            <Route
+                path="/my-certificates"
+                element={
+                <PrivateRoute allowedRoles={['student']}>
+                 <MyCertificates />
             </PrivateRoute>
-          } />
-          <Route path="/my-courses" element={
-            <PrivateRoute allowedRoles={['student']}><MyCourses /></PrivateRoute>
-          } />
-          <Route path="/student/profile" element={
-            <PrivateRoute allowedRoles={['student']}><StudentProfile /></PrivateRoute>
-          } />
+           }
+          />
 
           {/* Instructor */}
-          <Route path="/instructor/dashboard" element={
-            <PrivateRoute allowedRoles={['instructor', 'admin']}><InstructorDashboard /></PrivateRoute>
-          } />
-          <Route path="/instructor/courses/create" element={
-            <PrivateRoute allowedRoles={['instructor', 'admin']}><CreateCourse /></PrivateRoute>
-          } />
-          <Route path="/instructor/courses/:id/edit" element={
-            <PrivateRoute allowedRoles={['instructor', 'admin']}><EditCourse /></PrivateRoute>
-          } />
-          <Route path="/instructor/profile" element={
-            <PrivateRoute allowedRoles={['instructor']}><StudentProfile /></PrivateRoute>
-          } />
+          <Route
+            path="/instructor/dashboard"
+            element={
+              <PrivateRoute allowedRoles={['instructor', 'admin']}>
+                <InstructorDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/instructor/courses/create"
+            element={
+              <PrivateRoute allowedRoles={['instructor', 'admin']}>
+                <CreateCourse />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/instructor/courses/:id/edit"
+            element={
+              <PrivateRoute allowedRoles={['instructor', 'admin']}>
+                <EditCourse />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/instructor/profile"
+            element={
+              <PrivateRoute allowedRoles={['instructor']}>
+                <StudentProfile />
+              </PrivateRoute>
+            }
+          />
 
           {/* Admin */}
-          <Route path="/admin/dashboard" element={
-            <PrivateRoute allowedRoles={['admin']}><AdminDashboard /></PrivateRoute>
-          } />
-          <Route path="/admin/users" element={
-            <PrivateRoute allowedRoles={['admin']}><ManageUsers /></PrivateRoute>
-          } />
-          <Route path="/admin/courses" element={
-            <PrivateRoute allowedRoles={['admin']}><ManageCourses /></PrivateRoute>
-          } />
-          <Route path="/admin/analytics" element={
-            <PrivateRoute allowedRoles={['admin']}><AdminAnalytics /></PrivateRoute>
-          } />
-          <Route path="/profile" element={
-            <PrivateRoute allowedRoles={['admin']}><StudentProfile /></PrivateRoute>
-          } />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <PrivateRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <PrivateRoute allowedRoles={['admin']}>
+                <ManageUsers />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/courses"
+            element={
+              <PrivateRoute allowedRoles={['admin']}>
+                <ManageCourses />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin/analytics"
+            element={
+              <PrivateRoute allowedRoles={['admin']}>
+                <AdminAnalytics />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <PrivateRoute allowedRoles={['admin']}>
+                <StudentProfile />
+              </PrivateRoute>
+            }
+          />
 
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
@@ -110,6 +184,6 @@ function App() {
       </Router>
     </AuthProvider>
   );
-}
+};
 
 export default App;

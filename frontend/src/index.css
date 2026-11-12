@@ -649,3 +649,29 @@ body {
   .course-hero-overlay { padding: 20px; }
   .course-hero-overlay h1 { font-size: 1.6rem; }
 }
+
+/* ═══════════════════════════════════════════
+   DARK MODE
+   ═══════════════════════════════════════════ */
+body.dark-mode {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+body.dark-mode .card {
+  background-color: #1e293b;
+  color: #e2e8f0;
+}
+body.dark-mode .text-muted {
+  color: #94a3b8 !important;
+}
+body.dark-mode .bg-light {
+  background-color: #1e293b !important;
+}
+body.dark-mode .form-control {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+body.dark-mode .table {
+  color: #e2e8f0;
+}

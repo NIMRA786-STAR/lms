@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Container, Row, Col, Card, Spinner, Alert, ListGroup,
-  Modal, ProgressBar, Badge
+  Container, Row, Col, Card, Spinner, Alert,
+  Modal, Badge, ProgressBar
 } from 'react-bootstrap';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { getCourseImage } from '../utils/courseImages';
+import { useCourseImage } from '../hooks/useCourseImage';
 import IconButton from '../components/IconButton';
+import CourseContent from '../components/CourseContent';
+import QuizSection from '../components/QuizSection';
 import type { Course, Enrollment, Lesson } from '../types';
 import {
-  FaPlay, FaCheck, FaUndo, FaArrowLeft, FaVideo, FaClock,
-  FaCheckCircle, FaCreditCard
+  FaArrowLeft, FaCheck, FaCheckCircle, FaCreditCard, FaClock,
+  FaGraduationCap, FaPlay, FaTrophy, FaLock, FaBookOpen,
+  FaUserGraduate, FaStar
 } from 'react-icons/fa';
 
 const CourseDetail: React.FC = () => {
@@ -28,45 +31,55 @@ const CourseDetail: React.FC = () => {
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [togglingLesson, setTogglingLesson] = useState(false);
 
-  useEffect(() => {
-    fetchCourse();
-    if (user && user.role === 'student') fetchEnrollment();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, user]);
+  const { src: courseImg, onError: onImgError } = useCourseImage(course || undefined);
 
-  const fetchCourse = async () => {
+  // ─── Data fetching ───
+  const fetchCourse = useCallback(async () => {
     try {
       const res = await axios.get<{ data: Course }>(`/api/courses/${id}`);
       setCourse(res.data.data);
-    } catch {
-      setError('Course not found');
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setError('Course not found');
+      } else {
+        setError('Failed to load course. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const fetchEnrollment = async () => {
+  const fetchEnrollment = useCallback(async () => {
     try {
       const res = await axios.get<{ data: Enrollment }>(`/api/enroll/course/${id}`);
       setEnrollment(res.data.data);
     } catch {
       setEnrollment(null);
     }
-  };
+  }, [id]);
 
-  // ═══════ Enroll handler (paid → Stripe, free → direct) ═══════
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    setCourse(null);
+    setEnrollment(null);
+    fetchCourse();
+    if (user && user.role === 'student') fetchEnrollment();
+  }, [fetchCourse, fetchEnrollment, user]);
+
+  // ─── Enroll ───
   const handleEnroll = async () => {
     if (!user) return navigate('/login');
-    if (user.role !== 'student') return alert('Only students can enroll in courses');
+    if (user.role !== 'student') {
+      alert('Only students can enroll in courses');
+      return;
+    }
 
-    // PAID → Stripe Checkout
+    // Paid → Stripe
     if (course && course.price > 0) {
       setEnrolling(true);
       try {
-        const res = await axios.post<{ url: string }>(
-          `/api/courses/${id}/checkout`
-        );
-        // Redirect to Stripe-hosted checkout
+        const res = await axios.post<{ url: string }>(`/api/courses/${id}/checkout`);
         window.location.href = res.data.url;
       } catch (err: unknown) {
         const msg = axios.isAxiosError(err)
@@ -78,14 +91,11 @@ const CourseDetail: React.FC = () => {
       return;
     }
 
-    // FREE → direct enroll
+    // Free → direct
     setEnrolling(true);
     try {
-      const res = await axios.post<{ data: Enrollment }>('/api/enroll', {
-        courseId: id
-      });
+      const res = await axios.post<{ data: Enrollment }>('/api/enroll', { courseId: id });
       setEnrollment(res.data.data);
-      alert('Successfully enrolled!');
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err)
         ? err.response?.data?.message
@@ -96,18 +106,12 @@ const CourseDetail: React.FC = () => {
     }
   };
 
-  const isLessonCompleted = (lessonId: string): boolean => {
-    if (!enrollment?.completedLessons) return false;
-    return enrollment.completedLessons.some((l: unknown) => {
-      const lid = typeof l === 'object' && l !== null
-        ? (l as { _id?: string })._id || String(l)
-        : String(l);
-      return lid === lessonId;
-    });
-  };
-
+  // ─── Lesson actions ───
   const openVideo = (lesson: Lesson) => {
-    if (!enrollment) return alert('Please enroll first to watch lessons');
+    if (!enrollment) {
+      alert('Please enroll first to watch lessons');
+      return;
+    }
     setActiveLesson(lesson);
     setShowVideo(true);
   };
@@ -130,6 +134,7 @@ const CourseDetail: React.FC = () => {
     }
   };
 
+  // ─── Video helpers ───
   const getEmbedUrl = (url: string): string | null => {
     if (!url) return null;
     const yt = url.match(
@@ -147,150 +152,153 @@ const CourseDetail: React.FC = () => {
     return e.includes('youtube') || e.includes('vimeo');
   };
 
+  // ─── Loading state ───
   if (loading) {
     return (
-      <Container className="text-center py-5">
-        <Spinner animation="border" variant="primary" />
-        <p className="mt-3">Loading course details…</p>
+      <Container className="py-5">
+        <div className="text-center">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-3 text-muted">Loading course details…</p>
+        </div>
       </Container>
     );
   }
 
+  // ─── Error state ───
   if (error || !course) {
     return (
       <Container className="py-5">
         <Alert variant="danger">{error || 'Course not found'}</Alert>
-        <IconButton icon={FaArrowLeft} label="Back to Courses" outline
-          onClick={() => navigate('/courses')} />
+        <IconButton
+          icon={FaArrowLeft}
+          label="Back to Courses"
+          outline
+          onClick={() => navigate('/courses')}
+        />
       </Container>
     );
   }
 
+  // ─── Derived state ───
   const instructorName =
     typeof course.instructor === 'object' && course.instructor !== null
       ? course.instructor.name
       : 'Unknown';
   const isPaid = course.price > 0;
+  const isEnrolled = !!enrollment;
+  const progress = enrollment?.progress || 0;
+  const showQuiz = isEnrolled && progress === 100;
+  const canEnroll = !isEnrolled && user?.role === 'student';
 
   return (
     <Container className="py-4">
-      <div className="course-hero">
-        <img src={getCourseImage(course)} alt={course.title} />
+      {/* ─── HERO ─── */}
+      <div className="course-hero" style={{ borderRadius: 24, overflow: 'hidden' }}>
+        <img src={courseImg} alt={course.title} onError={onImgError} />
         <div className="course-hero-overlay">
+          <div className="d-flex gap-2 mb-2 flex-wrap">
+            <Badge bg="warning" text="dark">{course.category}</Badge>
+            <Badge bg="info">{course.level}</Badge>
+          </div>
           <h1>{course.title}</h1>
           <div className="meta">
-            By {instructorName} • {course.category} • {course.level}
+            <FaUserGraduate /> By {instructorName}
           </div>
         </div>
       </div>
 
-      <Row>
-        <Col md={8}>
-          <h3 className="section-heading">Description</h3>
-          <p style={{ color: '#4a5568', lineHeight: 1.7 }}>{course.description}</p>
+      <Row className="g-4">
+        {/* ─── MAIN CONTENT ─── */}
+        <Col lg={8}>
+          <h3 className="section-heading">About this course</h3>
+          <p style={{ color: '#4a5568', lineHeight: 1.8, fontSize: '1.02rem' }}>
+            {course.description}
+          </p>
 
-          <div className="d-flex justify-content-between align-items-center mt-4">
-            <h3 className="section-heading mb-0">Course Content</h3>
-            {enrollment && (
-              <Badge bg="primary"
-                style={{ fontSize: '0.9rem', borderRadius: 10, padding: '8px 14px' }}>
-                {enrollment.completedLessons?.length || 0} / {course.lessons?.length || 0} lessons done
-              </Badge>
-            )}
-          </div>
+          {/* Modern Course Content */}
+          <CourseContent
+            lessons={course.lessons || []}
+            enrollment={enrollment}
+            onOpenVideo={openVideo}
+            onToggleComplete={toggleComplete}
+            toggling={togglingLesson}
+          />
 
-          <ListGroup className="mb-4 mt-3">
-            {course.lessons && course.lessons.length > 0 ? (
-              course.lessons.map((lesson, index) => {
-                const done = isLessonCompleted(lesson._id);
-                const hasVideo = !!lesson.videoUrl;
-                return (
-                  <ListGroup.Item key={lesson._id || index}
-                    className={`lesson-item-modern ${done ? 'completed' : ''}`}>
-                    <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                      <div className="flex-grow-1">
-                        <div className="d-flex align-items-center mb-1 flex-wrap gap-2">
-                          <Badge bg={done ? 'success' : 'secondary'}>
-                            {done ? <FaCheck /> : index + 1}
-                          </Badge>
-                          <strong>{lesson.title}</strong>
-                          {lesson.duration && lesson.duration !== '00:00' && (
-                            <Badge bg="info"><FaClock /> {lesson.duration}</Badge>
-                          )}
-                          {hasVideo && (
-                            <Badge bg="warning" text="dark"><FaVideo /> Video</Badge>
-                          )}
-                        </div>
-                        {lesson.content && (
-                          <small className="text-muted d-block">
-                            {lesson.content.substring(0, 150)}
-                            {lesson.content.length > 150 ? '…' : ''}
-                          </small>
-                        )}
-                      </div>
-                      {enrollment && (
-                        <div className="d-flex gap-2 flex-wrap">
-                          <IconButton icon={FaPlay} label="Watch" variant="info" size="sm"
-                            disabled={!hasVideo}
-                            onClick={() => openVideo(lesson)} />
-                          <IconButton
-                            icon={done ? FaUndo : FaCheck}
-                            label={done ? 'Undo' : 'Mark Complete'}
-                            variant={done ? 'warning' : 'success'}
-                            size="sm"
-                            disabled={togglingLesson}
-                            onClick={() => toggleComplete(lesson)} />
-                        </div>
-                      )}
-                    </div>
-                  </ListGroup.Item>
-                );
-              })
-            ) : (
-              <ListGroup.Item>
-                <Alert variant="warning" className="mb-0">
-                  No lessons available yet.
-                </Alert>
-              </ListGroup.Item>
-            )}
-          </ListGroup>
+          {/* Quiz (only after 100%) */}
+          {showQuiz && (
+            <QuizSection courseId={course._id} courseTitle={course.title} />
+          )}
         </Col>
 
-        <Col md={4}>
-          <Card className="shadow-sm sticky-top"
-            style={{ top: '20px', borderRadius: 20, border: 'none' }}>
+        {/* ─── SIDEBAR ─── */}
+        <Col lg={4}>
+          <Card
+            className="shadow-sm sticky-top border-0"
+            style={{ top: '90px', borderRadius: 20 }}
+          >
             <Card.Body className="p-4">
-              <h3 style={{
-                fontSize: '2rem', fontWeight: 800,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}>
+              {/* Price */}
+              <h3
+                style={{
+                  fontSize: '2.2rem',
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  marginBottom: '0.5rem'
+                }}
+              >
                 {isPaid ? `$${course.price}` : 'Free'}
               </h3>
-              <p className="text-muted mb-1">Duration: {course.duration || '4 weeks'}</p>
-              <p className="text-muted mb-3">Level: {course.level || 'Beginner'}</p>
+
+              {/* Meta badges */}
+              <div className="d-flex gap-2 mb-3 flex-wrap">
+                <Badge bg="light" text="dark" style={{ padding: '8px 12px' }}>
+                  <FaClock /> {course.duration || '4 weeks'}
+                </Badge>
+                <Badge bg="light" text="dark" style={{ padding: '8px 12px' }}>
+                  <FaGraduationCap /> {course.level}
+                </Badge>
+                <Badge bg="light" text="dark" style={{ padding: '8px 12px' }}>
+                  <FaBookOpen /> {course.lessons?.length || 0} lessons
+                </Badge>
+              </div>
+
               <hr />
 
-              {enrollment ? (
+              {/* Enrollment / Enroll block */}
+              {isEnrolled ? (
                 <>
                   <div className="mb-3">
                     <div className="d-flex justify-content-between mb-1">
-                      <small className="text-muted">Progress</small>
+                      <small className="text-muted">Your Progress</small>
                       <small className="fw-bold" style={{ color: '#667eea' }}>
-                        {enrollment.progress || 0}%
+                        {progress}%
                       </small>
                     </div>
-                    <ProgressBar now={enrollment.progress || 0} className="progress-modern" />
+                    <ProgressBar
+                      now={progress}
+                      className="progress-modern"
+                      style={{ height: 8, borderRadius: 8 }}
+                    />
                   </div>
-                  <Badge bg={enrollment.progress === 100 ? 'success' : 'info'}
+
+                  <Badge
+                    bg={progress === 100 ? 'success' : 'info'}
                     className="mb-3"
-                    style={{ borderRadius: 10, padding: '8px 14px' }}>
+                    style={{ borderRadius: 10, padding: '8px 14px' }}
+                  >
                     <FaCheckCircle /> {enrollment.status || 'active'}
                   </Badge>
-                  <IconButton icon={FaCheck} label="Enrolled" variant="success" disabled
-                    style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} />
+
+                  <IconButton
+                    icon={FaCheck}
+                    label="You're Enrolled"
+                    variant="success"
+                    disabled
+                    style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                  />
                 </>
               ) : (
                 <IconButton
@@ -302,25 +310,81 @@ const CourseDetail: React.FC = () => {
                       ? 'Only students can enroll'
                       : isPaid
                       ? `Pay $${course.price} & Enroll`
-                      : 'Enroll Now'
+                      : 'Enroll Now — Free'
                   }
                   variant="primary"
                   onClick={handleEnroll}
-                  disabled={enrolling || user?.role !== 'student'}
-                  style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }} />
+                  disabled={enrolling || !canEnroll}
+                  style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                />
               )}
 
-              <IconButton icon={FaArrowLeft} label="Back to Courses" outline
+              {/* "What you get" mini list */}
+              <div className="mt-3" style={{ fontSize: '0.85rem' }}>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <FaCheckCircle color="#48bb78" />
+                  <span>Full lifetime access</span>
+                </div>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <FaStar color="#f6ad55" />
+                  <span>Certificate on completion</span>
+                </div>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <FaPlay color="#4299e1" />
+                  <span>HD video lessons</span>
+                </div>
+                {!isEnrolled && (
+                  <div className="d-flex align-items-center gap-2">
+                    <FaLock color="#a0aec0" />
+                    <span className="text-muted">Enroll to unlock content</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Quiz CTA (if completed) */}
+              {showQuiz && (
+                <div
+                  className="mt-3 p-3"
+                  style={{
+                    background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                    borderRadius: 12,
+                    border: '1px solid #fbbf24'
+                  }}
+                >
+                  <div className="d-flex align-items-center gap-2 mb-1">
+                    <FaTrophy color="#d97706" />
+                    <strong style={{ color: '#92400e' }}>Course Completed! 🎉</strong>
+                  </div>
+                  <small style={{ color: '#92400e' }}>
+                    Take the final quiz below to earn your certificate.
+                  </small>
+                </div>
+              )}
+
+              <IconButton
+                icon={FaArrowLeft}
+                label="Back to Courses"
+                outline
                 onClick={() => navigate('/courses')}
-                style={{ width: '100%', justifyContent: 'center' }} />
+                style={{ width: '100%', justifyContent: 'center', marginTop: 16 }}
+              />
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      <Modal show={showVideo} onHide={() => setShowVideo(false)} size="lg" centered>
+      {/* ─── VIDEO MODAL ─── */}
+      <Modal
+        show={showVideo}
+        onHide={() => setShowVideo(false)}
+        size="lg"
+        centered
+        backdrop="static"
+      >
         <Modal.Header closeButton>
-          <Modal.Title><FaPlay /> {activeLesson?.title}</Modal.Title>
+          <Modal.Title className="d-flex align-items-center gap-2">
+            <FaPlay color="#667eea" /> {activeLesson?.title}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           {activeLesson?.videoUrl ? (
@@ -330,12 +394,17 @@ const CourseDetail: React.FC = () => {
                   src={getEmbedUrl(activeLesson.videoUrl) || ''}
                   title={activeLesson.title}
                   style={{
-                    position: 'absolute', top: 0, left: 0,
-                    width: '100%', height: '100%', borderRadius: 12
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 12
                   }}
                   frameBorder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen />
+                  allowFullScreen
+                />
               </div>
             ) : (
               <video
@@ -343,38 +412,56 @@ const CourseDetail: React.FC = () => {
                 style={{ width: '100%', maxHeight: 500, borderRadius: 12 }}
                 src={activeLesson.videoUrl}
                 onEnded={() => {
-                  if (enrollment && activeLesson && !isLessonCompleted(activeLesson._id)) {
+                  // Auto-mark as complete when video finishes
+                  if (
+                    enrollment &&
+                    activeLesson &&
+                    !togglingLesson &&
+                    !isLessonDone(activeLesson._id)
+                  ) {
                     toggleComplete(activeLesson);
                   }
-                }}>
+                }}
+              >
                 Your browser does not support video.
               </video>
             )
           ) : (
-            <Alert variant="warning">No video URL for this lesson.</Alert>
+            <Alert variant="warning">No video URL available for this lesson.</Alert>
           )}
+
           {activeLesson?.content && (
             <div className="mt-3">
-              <h6>Lesson Notes:</h6>
-              <p className="text-muted">{activeLesson.content}</p>
+              <h6 className="fw-bold">📝 Lesson Notes</h6>
+              <p className="text-muted mb-0" style={{ lineHeight: 1.6 }}>
+                {activeLesson.content}
+              </p>
             </div>
           )}
         </Modal.Body>
         <Modal.Footer>
-          {activeLesson && enrollment && (
-            <IconButton
-              icon={isLessonCompleted(activeLesson._id) ? FaUndo : FaCheck}
-              label={isLessonCompleted(activeLesson._id) ? 'Undo Complete' : 'Mark Complete'}
-              variant={isLessonCompleted(activeLesson._id) ? 'warning' : 'success'}
-              onClick={() => toggleComplete(activeLesson)}
-              disabled={togglingLesson} />
-          )}
-          <IconButton icon={FaArrowLeft} label="Close" variant="outline"
-            onClick={() => setShowVideo(false)} />
+          <IconButton
+            icon={FaArrowLeft}
+            label="Close"
+            variant="outline"
+            onClick={() => setShowVideo(false)}
+          />
         </Modal.Footer>
       </Modal>
     </Container>
   );
+
+  // ─── Helper inside component (safe with `this` closure) ───
+  function isLessonDone(lessonId: string): boolean {
+    if (!enrollment?.completedLessons) return false;
+    return enrollment.completedLessons.some((l: unknown) => {
+      const lid =
+        typeof l === 'object' && l !== null
+          ? (l as { _id?: string })._id || String(l)
+          : String(l);
+      return lid === lessonId;
+    });
+  }
 };
 
 export default CourseDetail;

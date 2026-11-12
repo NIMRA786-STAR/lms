@@ -1,9 +1,18 @@
 import React from 'react';
 import { Container, Row, Col, Button } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { FaGraduationCap, FaChalkboardTeacher, FaUsers, FaArrowRight } from 'react-icons/fa';
+import { Link, LinkProps } from 'react-router-dom';
+import {
+  FaGraduationCap,
+  FaChalkboardTeacher,
+  FaUsers,
+  FaArrowRight,
+} from 'react-icons/fa';
 
-const Home = () => {
+// React-Bootstrap Button "as" prop ko satisfy karne ke liye type
+type CustomBootstrapLinkType = React.ComponentClass<LinkProps> &
+  keyof JSX.IntrinsicElements;
+
+const Home: React.FC = () => {
   return (
     <>
       <div className="hero-section">
@@ -15,8 +24,13 @@ const Home = () => {
                 Master new skills with our comprehensive online courses
                 taught by industry experts.
               </p>
-              <Button as={Link} to="/courses" variant="light" size="lg"
-                className="d-inline-flex align-items-center gap-2 mt-2">
+              <Button
+                as={Link as unknown as CustomBootstrapLinkType}
+                to="/courses"
+                variant="light"
+                size="lg"
+                className="d-inline-flex align-items-center gap-2 mt-2"
+              >
                 Explore Courses <FaArrowRight />
               </Button>
             </Col>

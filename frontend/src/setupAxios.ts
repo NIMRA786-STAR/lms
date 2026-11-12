@@ -1,9 +1,14 @@
 import axios from 'axios';
 
-axios.defaults.baseURL =
-  import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const baseURL = import.meta.env.VITE_API_URL;
 
-// Attach token to every request automatically
+if (!baseURL) {
+  console.warn('⚠️ VITE_API_URL is not set. API calls will fail in production.');
+}
+
+axios.defaults.baseURL = baseURL || 'http://localhost:5000';
+
+// Attach token to every request
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');

@@ -109,6 +109,8 @@ app.use('/api/courses', require('./routes/courseRoutes'));
 app.use('/api/enroll', require('./routes/enrollRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/payment', require('./routes/paymentRoutes'));
+app.use('/api/quizzes', require('./routes/quizRoutes'));
+app.use('/api/certificates', require('./routes/certificateRoutes'));
 
 // ═══════════════════════════════════════════════════════════
 // HEALTH CHECK

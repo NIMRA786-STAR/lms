@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import IconButton from './IconButton';
 import {
   FaHome, FaBook, FaInfoCircle, FaUser, FaSignOutAlt,
-  FaSignInAlt, FaUserPlus, FaTachometerAlt
+  FaSignInAlt, FaUserPlus, FaTachometerAlt, FaTrophy
 } from 'react-icons/fa';
 
 const NavigationBar: React.FC = () => {
@@ -44,6 +44,14 @@ const NavigationBar: React.FC = () => {
                 <Nav.Link as={Link} to={dashboardPath}>
                   <FaTachometerAlt /> Dashboard
                 </Nav.Link>
+
+                {/* ─── Certificates (Students only) ─── */}
+                {user.role === 'student' && (
+                  <Nav.Link as={Link} to="/my-certificates">
+                    <FaTrophy /> Certificates
+                  </Nav.Link>
+                )}
+
                 <Nav.Link as={Link} to={profilePath}>
                   <FaUser /> {user.name?.split(' ')[0]}
                 </Nav.Link>
