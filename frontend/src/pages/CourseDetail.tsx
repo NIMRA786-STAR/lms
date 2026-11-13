@@ -33,6 +33,18 @@ const CourseDetail: React.FC = () => {
 
   const { src: courseImg, onError: onImgError } = useCourseImage(course || undefined);
 
+  // ─── Helper: check if lesson is completed ───
+  const isLessonDone = (lessonId: string): boolean => {
+    if (!enrollment?.completedLessons) return false;
+    return enrollment.completedLessons.some((l: unknown) => {
+      const lid =
+        typeof l === 'object' && l !== null
+          ? (l as { _id?: string })._id || String(l)
+          : String(l);
+      return lid === lessonId;
+    });
+  };
+
   // ─── Data fetching ───
   const fetchCourse = useCallback(async () => {
     try {
@@ -152,7 +164,7 @@ const CourseDetail: React.FC = () => {
     return e.includes('youtube') || e.includes('vimeo');
   };
 
-  // ─── Loading state ───
+  // ─── Loading ───
   if (loading) {
     return (
       <Container className="py-5">
@@ -164,7 +176,7 @@ const CourseDetail: React.FC = () => {
     );
   }
 
-  // ─── Error state ───
+  // ─── Error ───
   if (error || !course) {
     return (
       <Container className="py-5">
@@ -215,7 +227,7 @@ const CourseDetail: React.FC = () => {
             {course.description}
           </p>
 
-          {/* Modern Course Content */}
+          {/* Course Content */}
           <CourseContent
             lessons={course.lessons || []}
             enrollment={enrollment}
@@ -224,7 +236,7 @@ const CourseDetail: React.FC = () => {
             toggling={togglingLesson}
           />
 
-          {/* Quiz (only after 100%) */}
+          {/* Quiz — shows automatically after 100% progress */}
           {showQuiz && (
             <QuizSection courseId={course._id} courseTitle={course.title} />
           )}
@@ -252,7 +264,7 @@ const CourseDetail: React.FC = () => {
                 {isPaid ? `$${course.price}` : 'Free'}
               </h3>
 
-              {/* Meta badges */}
+              {/* Meta */}
               <div className="d-flex gap-2 mb-3 flex-wrap">
                 <Badge bg="light" text="dark" style={{ padding: '8px 12px' }}>
                   <FaClock /> {course.duration || '4 weeks'}
@@ -267,7 +279,7 @@ const CourseDetail: React.FC = () => {
 
               <hr />
 
-              {/* Enrollment / Enroll block */}
+              {/* Enroll block */}
               {isEnrolled ? (
                 <>
                   <div className="mb-3">
@@ -319,7 +331,7 @@ const CourseDetail: React.FC = () => {
                 />
               )}
 
-              {/* "What you get" mini list */}
+              {/* What you get */}
               <div className="mt-3" style={{ fontSize: '0.85rem' }}>
                 <div className="d-flex align-items-center gap-2 mb-2">
                   <FaCheckCircle color="#48bb78" />
@@ -341,7 +353,7 @@ const CourseDetail: React.FC = () => {
                 )}
               </div>
 
-              {/* Quiz CTA (if completed) */}
+              {/* Quiz CTA */}
               {showQuiz && (
                 <div
                   className="mt-3 p-3"
@@ -412,7 +424,6 @@ const CourseDetail: React.FC = () => {
                 style={{ width: '100%', maxHeight: 500, borderRadius: 12 }}
                 src={activeLesson.videoUrl}
                 onEnded={() => {
-                  // Auto-mark as complete when video finishes
                   if (
                     enrollment &&
                     activeLesson &&
@@ -450,18 +461,6 @@ const CourseDetail: React.FC = () => {
       </Modal>
     </Container>
   );
-
-  // ─── Helper inside component (safe with `this` closure) ───
-  function isLessonDone(lessonId: string): boolean {
-    if (!enrollment?.completedLessons) return false;
-    return enrollment.completedLessons.some((l: unknown) => {
-      const lid =
-        typeof l === 'object' && l !== null
-          ? (l as { _id?: string })._id || String(l)
-          : String(l);
-      return lid === lessonId;
-    });
-  }
 };
 
 export default CourseDetail;
