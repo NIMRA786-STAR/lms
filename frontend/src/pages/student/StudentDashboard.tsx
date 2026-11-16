@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Spinner, ProgressBar } from 'react-bootstrap';
+import { Container, Row, Col, Card, Spinner, ProgressBar, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
@@ -7,7 +7,7 @@ import { useCourseImage } from '../../hooks/useCourseImage';
 import IconButton from '../../components/IconButton';
 import {
   FaGraduationCap, FaCheckCircle, FaChartLine, FaPlay,
-  FaArrowRight, FaBook
+  FaArrowRight, FaBook, FaTrophy
 } from 'react-icons/fa';
 
 // ─── Sub-components ───
@@ -72,6 +72,7 @@ const StudentDashboard = () => {
   const { user } = useAuth();
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [recommendedCourses, setRecommendedCourses] = useState<any[]>([]);
+  const [certificates, setCertificates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalEnrolled: 0, completedCourses: 0, inProgressCourses: 0, averageProgress: 0
@@ -98,6 +99,7 @@ const StudentDashboard = () => {
           ? Math.round(enrollments.reduce((acc: number, e: any) => acc + (e.progress || 0), 0) / enrollments.length)
           : 0
       });
+
       const coursesRes = await axios.get('/api/courses');
       const enrolledIds = enrollments.map((e: any) => e.course?._id);
       setRecommendedCourses(
@@ -105,6 +107,14 @@ const StudentDashboard = () => {
           .filter((c: any) => !enrolledIds.includes(c._id))
           .slice(0, 3)
       );
+
+      // ✅ Certificates fetch
+      try {
+        const certsRes = await axios.get('/api/certificates/my');
+        setCertificates(certsRes.data.data || []);
+      } catch {
+        setCertificates([]);
+      }
     } catch (error: any) {
       if (error.response?.status === 401) window.location.href = '/login';
     } finally {
@@ -172,6 +182,49 @@ const StudentDashboard = () => {
             </Col>
           ))}
         </Row>
+      )}
+
+      {/* ✅ Certificates Section */}
+      {certificates.length > 0 && (
+        <>
+          <div className="d-flex justify-content-between align-items-center mb-3 mt-4">
+            <h3 className="section-heading mb-0 d-flex align-items-center gap-2">
+              <FaTrophy color="#f59e0b" /> My Certificates
+            </h3>
+            <Link to="/my-certificates" className="text-decoration-none">
+              <IconButton icon={FaArrowRight} label="View All" outline size="sm" />
+            </Link>
+          </div>
+          <Row>
+            {certificates.slice(0, 3).map((cert) => (
+              <Col key={cert._id} md={4} className="mb-4">
+                <Card className="text-center shadow-sm border-0 h-100"
+                  style={{ borderRadius: 20, overflow: 'hidden' }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    padding: 20, color: 'white'
+                  }}>
+                    <FaTrophy size={36} color="#fbbf24" />
+                    <h6 className="mt-2 mb-0">Certificate</h6>
+                  </div>
+                  <Card.Body className="p-3">
+                    <h6 className="mb-2">{cert.course?.title}</h6>
+                    <Badge bg="success" className="mb-2">Score: {cert.score}%</Badge>
+                    <Link to="/my-certificates" className="text-decoration-none d-block mt-2">
+                      <IconButton
+                        icon={FaTrophy}
+                        label="View"
+                        variant="primary"
+                        size="sm"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                      />
+                    </Link>
+                  </Card.Body>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </>
       )}
 
       {recommendedCourses.length > 0 && (

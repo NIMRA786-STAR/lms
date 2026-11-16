@@ -38,7 +38,8 @@ const TakeQuiz: React.FC = () => {
   const navigate = useNavigate();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  // ✅ Index-based answers (Number), not string
+  const [answers, setAnswers] = useState<Record<string, number>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -46,8 +47,7 @@ const TakeQuiz: React.FC = () => {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
-  // Refs to avoid stale closures in timer
-  const answersRef = useRef<Record<string, string>>({});
+  const answersRef = useRef<Record<string, number>>({});
   const quizRef = useRef<Quiz | null>(null);
   const submittedRef = useRef(false);
 
@@ -73,7 +73,7 @@ const TakeQuiz: React.FC = () => {
     fetchQuiz();
   }, [courseId]);
 
-  // ─── Submit (useCallback + refs) ───
+  // ─── Submit ───
   const handleSubmit = useCallback(async () => {
     if (submittedRef.current) return;
     const currentQuiz = quizRef.current;
@@ -92,7 +92,8 @@ const TakeQuiz: React.FC = () => {
     try {
       const payload = currentQuiz.questions.map((q) => ({
         questionId: q._id,
-        selectedAnswer: currentAnswers[q._id] || null
+        selectedAnswer:
+          currentAnswers[q._id] !== undefined ? currentAnswers[q._id] : -1
       }));
       const res = await axios.post(
         `/api/quizzes/course/${courseId}/submit`,
@@ -111,7 +112,7 @@ const TakeQuiz: React.FC = () => {
     }
   }, [courseId]);
 
-  // ─── Timer (independent effect) ───
+  // ─── Timer ───
   useEffect(() => {
     if (!quiz || !quiz.duration || result) return;
 
@@ -129,8 +130,9 @@ const TakeQuiz: React.FC = () => {
     return () => clearInterval(timer);
   }, [quiz, result, handleSubmit]);
 
-  const selectAnswer = (questionId: string, option: string) => {
-    const updated = { ...answers, [questionId]: option };
+  // ✅ Select answer by INDEX
+  const selectAnswer = (questionId: string, optionIndex: number) => {
+    const updated = { ...answers, [questionId]: optionIndex };
     setAnswers(updated);
     answersRef.current = updated;
   };
@@ -183,16 +185,14 @@ const TakeQuiz: React.FC = () => {
           </h2>
 
           <div className="my-4">
-            <h1
-              style={{
-                fontSize: '3rem',
-                fontWeight: 800,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-              }}
-            >
+            <h1 style={{
+              fontSize: '3rem',
+              fontWeight: 800,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text'
+            }}>
               {result.percentage}%
             </h1>
             <p className="text-muted">
@@ -205,7 +205,7 @@ const TakeQuiz: React.FC = () => {
             <Alert variant="success">
               <FaTrophy /> <strong>Certificate Issued!</strong>
               <br />
-              <small>Check your profile to download it.</small>
+              <small>Check your certificates page to download it.</small>
             </Alert>
           )}
 
@@ -213,6 +213,11 @@ const TakeQuiz: React.FC = () => {
             <Button variant="primary" onClick={() => navigate(`/courses/${courseId}`)}>
               <FaArrowLeft /> Back to Course
             </Button>
+            {result.certificateIssued && (
+              <Button variant="success" onClick={() => navigate('/my-certificates')}>
+                <FaTrophy /> View Certificate
+              </Button>
+            )}
             {!result.passed && (
               <Button variant="warning" onClick={() => window.location.reload()}>
                 Try Again
@@ -224,7 +229,7 @@ const TakeQuiz: React.FC = () => {
     );
   }
 
-  // ─── Guard: no questions ───
+  // ─── Guard ───
   if (!quiz || !quiz.questions || quiz.questions.length === 0) {
     return (
       <Container className="py-5">
@@ -250,11 +255,8 @@ const TakeQuiz: React.FC = () => {
               <small className="text-muted">{quiz.description}</small>
             </div>
             {quiz.duration > 0 && (
-              <Badge
-                bg={timeLeft < 60 ? 'danger' : 'warning'}
-                text="dark"
-                style={{ fontSize: '1rem', padding: '10px 16px', borderRadius: 10 }}
-              >
+              <Badge bg={timeLeft < 60 ? 'danger' : 'warning'} text="dark"
+                style={{ fontSize: '1rem', padding: '10px 16px', borderRadius: 10 }}>
                 <FaClock /> {formatTime(timeLeft)}
               </Badge>
             )}
@@ -274,10 +276,8 @@ const TakeQuiz: React.FC = () => {
       <Card className="mb-4 shadow-sm" style={{ borderRadius: 20, border: 'none' }}>
         <Card.Body className="p-4">
           <div className="d-flex align-items-center mb-3">
-            <Badge
-              bg="primary"
-              style={{ fontSize: '1rem', padding: '8px 14px', borderRadius: 10 }}
-            >
+            <Badge bg="primary"
+              style={{ fontSize: '1rem', padding: '8px 14px', borderRadius: 10 }}>
               Q{currentIndex + 1}
             </Badge>
             <span className="ms-2 small text-muted">
@@ -291,12 +291,13 @@ const TakeQuiz: React.FC = () => {
 
           <div className="d-flex flex-column gap-2">
             {question.options.map((option, idx) => {
-              const selected = answers[question._id] === option;
+              // ✅ Compare with INDEX
+              const selected = answers[question._id] === idx;
               return (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => selectAnswer(question._id, option)}
+                  onClick={() => selectAnswer(question._id, idx)}
                   className="btn text-start p-3"
                   style={{
                     border: `2px solid ${selected ? '#667eea' : '#e2e8f0'}`,
@@ -307,21 +308,19 @@ const TakeQuiz: React.FC = () => {
                     fontWeight: selected ? 600 : 400
                   }}
                 >
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 28,
-                      height: 28,
-                      borderRadius: '50%',
-                      background: selected ? '#667eea' : '#edf2f7',
-                      color: selected ? 'white' : '#4a5568',
-                      marginRight: 12,
-                      fontSize: '0.85rem',
-                      fontWeight: 700
-                    }}
-                  >
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: selected ? '#667eea' : '#edf2f7',
+                    color: selected ? 'white' : '#4a5568',
+                    marginRight: 12,
+                    fontSize: '0.85rem',
+                    fontWeight: 700
+                  }}>
                     {String.fromCharCode(65 + idx)}
                   </span>
                   {option}
@@ -334,20 +333,16 @@ const TakeQuiz: React.FC = () => {
 
       {/* Navigation */}
       <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <Button
-          variant="outline-secondary"
+        <Button variant="outline-secondary"
           onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-          disabled={currentIndex === 0}
-        >
+          disabled={currentIndex === 0}>
           <FaArrowLeft /> Previous
         </Button>
 
         <div className="d-flex gap-2">
           {!isLastQuestion && (
-            <Button
-              variant="primary"
-              onClick={() => setCurrentIndex(currentIndex + 1)}
-            >
+            <Button variant="primary"
+              onClick={() => setCurrentIndex(currentIndex + 1)}>
               Next
             </Button>
           )}
@@ -363,15 +358,10 @@ const TakeQuiz: React.FC = () => {
         </div>
       </div>
 
-      {/* Submit shortcut when all answered */}
       {!isLastQuestion && allAnswered && (
         <div className="text-center mt-3">
           <Button variant="success" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? (
-              'Submitting…'
-            ) : (
-              <><FaCheckCircle /> Submit Quiz</>
-            )}
+            {submitting ? 'Submitting…' : <><FaCheckCircle /> Submit Quiz</>}
           </Button>
         </div>
       )}

@@ -20,6 +20,7 @@ import StudentDashboard from './pages/student/StudentDashboard';
 import MyCourses from './pages/student/MyCourses';
 import StudentProfile from './pages/student/StudentProfile';
 import TakeQuiz from './pages/student/TakeQuiz';
+import MyCertificates from './pages/student/MyCertificates';
 
 // Instructor
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
@@ -103,6 +104,14 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+               path="/my-certificates"
+                 element={
+                 <PrivateRoute allowedRoles={['student']}>
+                <MyCertificates />
+                 </PrivateRoute>
+             }
+           />
 
           {/* Instructor */}
           <Route
@@ -139,13 +148,13 @@ function App() {
           />
 
           <Route
-  path="/instructor/courses/:courseId/quiz"
-  element={
-    <PrivateRoute allowedRoles={['instructor', 'admin']}>
-      <ManageQuiz />
-    </PrivateRoute>
-  }
-/>
+              path="/instructor/courses/:courseId/quiz"
+              element={
+               <PrivateRoute allowedRoles={['instructor', 'admin']}>
+                <ManageQuiz />
+                </PrivateRoute>
+              }
+            />
 
           {/* Admin */}
           <Route

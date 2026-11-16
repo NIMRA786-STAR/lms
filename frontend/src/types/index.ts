@@ -65,3 +65,43 @@ export interface AuthResponse {
   email: string;
   role: UserRole;
 }
+
+export interface QuizQuestion {
+  _id: string;
+  question: string;
+  options: string[];
+  points: number;
+}
+
+export interface Quiz {
+  _id: string;
+  title: string;
+  description: string;
+  passingScore: number;
+  duration: number;
+  questions: QuizQuestion[];
+}
+
+export interface QuizResult {
+  score: number;
+  totalPoints: number;
+  percentage: number;
+  passed: boolean;
+  passingScore: number;
+  certificateIssued: boolean;
+}
+
+export interface Certificate {
+  _id: string;
+  certificateId: string;
+  score: number;
+  issuedAt: string;
+  course: {
+    _id: string;
+    title: string;
+    category: string;
+  };
+  student?: {
+    name: string;
+  };
+}
