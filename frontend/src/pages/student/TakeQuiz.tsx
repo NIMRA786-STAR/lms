@@ -38,8 +38,8 @@ const TakeQuiz: React.FC = () => {
   const navigate = useNavigate();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
-  // ✅ Index-based answers (Number), not string
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  // ✅ String-based answers (option text)
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -47,7 +47,7 @@ const TakeQuiz: React.FC = () => {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
-  const answersRef = useRef<Record<string, number>>({});
+  const answersRef = useRef<Record<string, string>>({});
   const quizRef = useRef<Quiz | null>(null);
   const submittedRef = useRef(false);
 
@@ -92,8 +92,7 @@ const TakeQuiz: React.FC = () => {
     try {
       const payload = currentQuiz.questions.map((q) => ({
         questionId: q._id,
-        selectedAnswer:
-          currentAnswers[q._id] !== undefined ? currentAnswers[q._id] : -1
+        selectedAnswer: currentAnswers[q._id] || null
       }));
       const res = await axios.post(
         `/api/quizzes/course/${courseId}/submit`,
@@ -130,9 +129,9 @@ const TakeQuiz: React.FC = () => {
     return () => clearInterval(timer);
   }, [quiz, result, handleSubmit]);
 
-  // ✅ Select answer by INDEX
-  const selectAnswer = (questionId: string, optionIndex: number) => {
-    const updated = { ...answers, [questionId]: optionIndex };
+  // ✅ Select answer by OPTION TEXT (not index)
+  const selectAnswer = (questionId: string, optionText: string) => {
+    const updated = { ...answers, [questionId]: optionText };
     setAnswers(updated);
     answersRef.current = updated;
   };
@@ -291,13 +290,13 @@ const TakeQuiz: React.FC = () => {
 
           <div className="d-flex flex-column gap-2">
             {question.options.map((option, idx) => {
-              // ✅ Compare with INDEX
-              const selected = answers[question._id] === idx;
+              // ✅ Compare with OPTION TEXT
+              const selected = answers[question._id] === option;
               return (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => selectAnswer(question._id, idx)}
+                  onClick={() => selectAnswer(question._id, option)}
                   className="btn text-start p-3"
                   style={{
                     border: `2px solid ${selected ? '#667eea' : '#e2e8f0'}`,
