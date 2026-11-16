@@ -6,7 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import IconButton from '../../components/IconButton';
 import {
   FaPlus, FaEdit, FaTrash, FaBookOpen, FaUsers, FaMoneyBillWave,
-  FaLayerGroup, FaClock, FaVideo, FaSave, FaTimes, FaChalkboardTeacher
+  FaLayerGroup, FaClock, FaVideo, FaSave, FaTimes, FaChalkboardTeacher,
+  FaTrophy
 } from 'react-icons/fa';
 
 const InstructorDashboard = () => {
@@ -173,6 +174,9 @@ const InstructorDashboard = () => {
                   </Link>
                   <IconButton icon={FaBookOpen} label="Lessons" variant="success" size="sm"
                     onClick={() => openLessonManager(course)} />
+                  <Link to={`/instructor/courses/${course._id}/quiz`} className="text-decoration-none">
+                    <IconButton icon={FaTrophy} label="Quiz" variant="info" size="sm" />
+                  </Link>
                   <IconButton icon={FaTrash} label="Delete" variant="danger" size="sm"
                     onClick={() => handleDeleteCourse(course._id, course.title)} />
                 </td>

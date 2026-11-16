@@ -25,6 +25,7 @@ import TakeQuiz from './pages/student/TakeQuiz';
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
 import CreateCourse from './pages/instructor/CreateCourse';
 import EditCourse from './pages/instructor/EditCourse';
+import ManageQuiz from './pages/instructor/ManageQuiz';
 
 // Admin
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -136,6 +137,15 @@ function App() {
               </PrivateRoute>
             }
           />
+
+          <Route
+  path="/instructor/courses/:courseId/quiz"
+  element={
+    <PrivateRoute allowedRoles={['instructor', 'admin']}>
+      <ManageQuiz />
+    </PrivateRoute>
+  }
+/>
 
           {/* Admin */}
           <Route
