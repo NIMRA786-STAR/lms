@@ -236,7 +236,39 @@ const CourseDetail: React.FC = () => {
             toggling={togglingLesson}
           />
 
-          {/* Quiz — shows automatically after 100% progress */}
+          {/* ✅ Quiz CTA — Take Quiz button (before QuizSection) */}
+          {showQuiz && (
+            <Card
+              className="mb-4 shadow-sm border-0"
+              style={{
+                borderRadius: 20,
+                background: 'linear-gradient(135deg, #fef3c7, #fde68a)'
+              }}
+            >
+              <Card.Body className="p-4">
+                <div className="d-flex align-items-center gap-3 flex-wrap">
+                  <FaTrophy size={48} color="#d97706" />
+                  <div className="flex-grow-1">
+                    <h4 className="mb-1" style={{ color: '#92400e', fontWeight: 800 }}>
+                      🎉 Course Completed!
+                    </h4>
+                    <p className="mb-0" style={{ color: '#92400e' }}>
+                      You've finished all lessons. Take the final quiz to earn your certificate.
+                    </p>
+                  </div>
+                  <button
+                    className="icon-btn icon-btn-warning"
+                    onClick={() => navigate(`/courses/${course._id}/quiz`)}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <FaTrophy /> Take Quiz
+                  </button>
+                </div>
+              </Card.Body>
+            </Card>
+          )}
+
+          {/* Inline Quiz Section (optional — auto-loads quiz) */}
           {showQuiz && (
             <QuizSection courseId={course._id} courseTitle={course.title} />
           )}
@@ -311,6 +343,17 @@ const CourseDetail: React.FC = () => {
                     disabled
                     style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
                   />
+
+                  {/* ✅ Take Quiz button in sidebar too */}
+                  {showQuiz && (
+                    <IconButton
+                      icon={FaTrophy}
+                      label="Take Quiz"
+                      variant="warning"
+                      onClick={() => navigate(`/courses/${course._id}/quiz`)}
+                      style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+                    />
+                  )}
                 </>
               ) : (
                 <IconButton
@@ -352,26 +395,6 @@ const CourseDetail: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              {/* Quiz CTA */}
-              {showQuiz && (
-                <div
-                  className="mt-3 p-3"
-                  style={{
-                    background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-                    borderRadius: 12,
-                    border: '1px solid #fbbf24'
-                  }}
-                >
-                  <div className="d-flex align-items-center gap-2 mb-1">
-                    <FaTrophy color="#d97706" />
-                    <strong style={{ color: '#92400e' }}>Course Completed! 🎉</strong>
-                  </div>
-                  <small style={{ color: '#92400e' }}>
-                    Take the final quiz below to earn your certificate.
-                  </small>
-                </div>
-              )}
 
               <IconButton
                 icon={FaArrowLeft}
