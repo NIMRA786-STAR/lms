@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const answerSchema = new mongoose.Schema({
   questionId: mongoose.Schema.Types.ObjectId,
-  selectedAnswer: Number,
+  selectedAnswer: { type: String, default: null },  // ✅ String
   isCorrect: Boolean
 }, { _id: false });
 

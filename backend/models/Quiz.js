@@ -7,7 +7,7 @@ const questionSchema = new mongoose.Schema({
     required: true,
     validate: [arr => arr.length === 4, 'Exactly 4 options required']
   },
-  correctAnswer: { type: String, required: true, min: 0, max: 3 },
+  correctAnswer: { type: String, required: true },  // ✅ String only
   points: { type: Number, default: 1 }
 });
 
@@ -21,8 +21,8 @@ const quizSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, default: '' },
   questions: [questionSchema],
-  passingScore: { type: Number, default: 70 }, // percentage
-  duration: { type: Number, default: 15 },     // minutes
+  passingScore: { type: Number, default: 70 },
+  duration: { type: Number, default: 15 },
   createdAt: { type: Date, default: Date.now }
 });
 
