@@ -19,7 +19,7 @@ import PaymentCancel from './pages/PaymentCancel';
 import StudentDashboard from './pages/student/StudentDashboard';
 import MyCourses from './pages/student/MyCourses';
 import StudentProfile from './pages/student/StudentProfile';
-import MyCertificates from './pages/student/MyCertificates';
+import TakeQuiz from './pages/student/TakeQuiz';
 
 // Instructor
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
@@ -35,7 +35,7 @@ import AdminAnalytics from './pages/admin/AdminAnalytics';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 
-const App: React.FC = () => {
+function App() {
   return (
     <AuthProvider>
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -67,6 +67,16 @@ const App: React.FC = () => {
             }
           />
 
+          {/* Quiz */}
+          <Route
+            path="/courses/:courseId/quiz"
+            element={
+              <PrivateRoute allowedRoles={['student']}>
+                <TakeQuiz />
+              </PrivateRoute>
+            }
+          />
+
           {/* Student */}
           <Route
             path="/dashboard"
@@ -91,15 +101,6 @@ const App: React.FC = () => {
                 <StudentProfile />
               </PrivateRoute>
             }
-          />
-
-            <Route
-                path="/my-certificates"
-                element={
-                <PrivateRoute allowedRoles={['student']}>
-                 <MyCertificates />
-            </PrivateRoute>
-           }
           />
 
           {/* Instructor */}
@@ -184,6 +185,6 @@ const App: React.FC = () => {
       </Router>
     </AuthProvider>
   );
-};
+}
 
 export default App;
