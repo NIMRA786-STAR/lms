@@ -7,7 +7,7 @@ const questionSchema = new mongoose.Schema({
     required: true,
     validate: [arr => arr.length === 4, 'Exactly 4 options required']
   },
-  correctAnswer: { type: Number, required: true, min: 0, max: 3 },
+  correctAnswer: { type: String, required: true, min: 0, max: 3 },
   points: { type: Number, default: 1 }
 });
 
