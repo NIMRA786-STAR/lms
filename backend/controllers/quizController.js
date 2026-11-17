@@ -30,7 +30,28 @@ const upsertQuiz = async (req, res) => {
 const getQuizByCourse = async (req, res) => {
   try {
     const quiz = await Quiz.findOne({ course: req.params.courseId });
-    if (!quiz) return res.status(404).json({ success: false, message: 'No quiz for this course' });
+    if (!quiz) {
+      return res.status(404).json({ success: false, message: 'No quiz for this course' });
+    }
+
+    // Students ko correctAnswer mat dikhao
+    if (req.user.role === 'student') {
+      const sanitized = {
+        _id: quiz._id,
+        title: quiz.title,
+        description: quiz.description,
+        passingScore: quiz.passingScore,
+        duration: quiz.duration,
+        questions: quiz.questions.map(q => ({
+          _id: q._id,
+          question: q.question,
+          options: q.options,
+          points: q.points
+        }))
+      };
+      return res.json({ success: true, data: sanitized });
+    }
+
     res.json({ success: true, data: quiz });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -81,6 +102,7 @@ const startQuiz = async (req, res) => {
   }
 };
 
+
 // ─── STUDENT: Submit answers ───
 const submitQuiz = async (req, res) => {
   try {
@@ -102,15 +124,21 @@ const submitQuiz = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You must be enrolled' });
     }
 
-    // Grade
+    // ─── Grade (defensive string normalization) ───
     let score = 0;
     let totalPoints = 0;
     const gradedAnswers = [];
 
-    quiz.questions.forEach((q, idx) => {
-      const submitted = answers.find(a => String(a.questionId) === String(q._id));
-      const selected = submitted ? submitted.selectedAnswer : null;
-      const isCorrect = selected === q.correctAnswer;
+    const norm = (v) =>
+      v === null || v === undefined ? null : String(v).trim();
+
+    quiz.questions.forEach((q) => {
+      const submitted = answers.find(
+        a => String(a.questionId) === String(q._id)
+      );
+      const selected = norm(submitted ? submitted.selectedAnswer : null);
+      const correct = norm(q.correctAnswer);
+      const isCorrect = selected !== null && selected === correct;
 
       totalPoints += q.points || 1;
       if (isCorrect) score += q.points || 1;
@@ -123,7 +151,8 @@ const submitQuiz = async (req, res) => {
     });
 
     const percentage = totalPoints > 0 ? Math.round((score / totalPoints) * 100) : 0;
-    const passed = percentage >= quiz.passingScore;
+    const passingScore = Number(quiz.passingScore ?? 70);
+    const passed = percentage >= passingScore;
 
     const attempt = await QuizAttempt.create({
       student: req.user._id,
@@ -137,7 +166,9 @@ const submitQuiz = async (req, res) => {
       completedAt: new Date()
     });
 
-    // Issue certificate if passed
+    // ─── Issue certificate if passed (once per course) ───
+    let certificateIssued = false;
+
     if (passed) {
       const existing = await Certificate.findOne({
         student: req.user._id,
@@ -150,6 +181,7 @@ const submitQuiz = async (req, res) => {
           certificateId: crypto.randomBytes(8).toString('hex').toUpperCase(),
           score: percentage
         });
+        certificateIssued = true;
       }
     }
 
@@ -162,8 +194,8 @@ const submitQuiz = async (req, res) => {
         totalPoints,
         percentage,
         passed,
-        passingScore: quiz.passingScore,
-        certificateIssued: passed
+        passingScore,
+        certificateIssued   
       }
     });
   } catch (err) {

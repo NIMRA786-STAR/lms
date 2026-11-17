@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 
 const answerSchema = new mongoose.Schema({
-  questionId: mongoose.Schema.Types.ObjectId,
-  selectedAnswer: { type: String, default: null },  // ✅ String
-  isCorrect: Boolean
+  questionId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  // ✅ Store the FULL option text (string), not an index
+  selectedAnswer: { type: String, default: null },
+  isCorrect: { type: Boolean, default: false }
 }, { _id: false });
 
 const quizAttemptSchema = new mongoose.Schema({
@@ -22,7 +23,7 @@ const quizAttemptSchema = new mongoose.Schema({
     ref: 'Course',
     required: true
   },
-  answers: [answerSchema],
+  answers: { type: [answerSchema], default: [] },
   score: { type: Number, default: 0 },
   totalPoints: { type: Number, default: 0 },
   percentage: { type: Number, default: 0 },
@@ -33,4 +34,6 @@ const quizAttemptSchema = new mongoose.Schema({
 
 quizAttemptSchema.index({ student: 1, quiz: 1, completedAt: -1 });
 
-module.exports = mongoose.model('QuizAttempt', quizAttemptSchema);
+module.exports =
+  mongoose.models.QuizAttempt ||
+  mongoose.model('QuizAttempt', quizAttemptSchema);

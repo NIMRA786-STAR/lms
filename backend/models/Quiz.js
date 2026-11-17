@@ -7,7 +7,7 @@ const questionSchema = new mongoose.Schema({
     required: true,
     validate: [arr => arr.length === 4, 'Exactly 4 options required']
   },
-  correctAnswer: { type: String, required: true },  // ✅ String only
+  correctAnswer: { type: String, required: true },  
   points: { type: Number, default: 1 }
 });
 
@@ -26,4 +26,4 @@ const quizSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('Quiz', quizSchema);
+module.exports = mongoose.models.Quiz || mongoose.model('Quiz', quizSchema);

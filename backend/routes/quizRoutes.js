@@ -11,7 +11,12 @@ const { protect, authorize } = require('../middleware/authMiddleware');
 
 // Instructor
 router.post('/course/:courseId', protect, authorize('instructor', 'admin'), upsertQuiz);
-router.get('/course/:courseId', protect, getQuizByCourse);
+router.get(
+  '/course/:courseId',
+  protect,
+  authorize('instructor', 'admin'),
+  getQuizByCourse
+);
 
 // Student
 router.get('/course/:courseId/start', protect, authorize('student'), startQuiz);
