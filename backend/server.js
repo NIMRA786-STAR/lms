@@ -31,18 +31,27 @@ app.use(helmet({
 // CORS
 // ═══════════════════════════════════════════════════════════
 const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5000',
-  process.env.CORS_ORIGIN,
+  'http://localhost:5173',   // Vite dev
+  'http://localhost:4173',   // Vite preview
+  'http://localhost:3000',   // CRA / other
+  process.env.FRONTEND_URL,  // production URL from .env
 ].filter(Boolean);
 
 app.use(cors({
-  origin: (origin, callback) => {
+  origin: function (origin, callback) {
+    // allow requests with no origin (mobile apps, curl, Postman)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // allow any localhost / 127.0.0.1 port in dev
+    const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+    if (isLocalhost || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
     return callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
-  credentials: true,
+  credentials: true
 }));
 
 // ═══════════════════════════════════════════════════════════

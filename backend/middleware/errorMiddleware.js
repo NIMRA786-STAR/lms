@@ -1,6 +1,5 @@
 /**
  * Error Handling Middleware for Express.js
- * FIXED: Removed unused validationResult import (was causing ReferenceError)
  */
 
 class ApiError extends Error {
@@ -27,7 +26,7 @@ const errorHandler = (err, req, res, next) => {
   if (process.env.NODE_ENV !== 'production') {
     console.error('❌ Error:', {
       message: err.message,
-      status: err.status || 500,
+      status: err.status || err.statusCode || 500,
       method: req.method,
       url: req.url,
       user: req.user?._id
@@ -36,24 +35,29 @@ const errorHandler = (err, req, res, next) => {
     console.error('❌ Error:', err.message);
   }
 
-  // Mongoose Bad ObjectId
+  // ═══════ CORS (specific — check first) ═══════
+  if (err.message && err.message.includes('not allowed by CORS')) {
+    error = new ApiError(403, err.message);
+  }
+
+  // ═══════ Mongoose Bad ObjectId ═══════
   if (err.name === 'CastError') {
     error = new ApiError(400, `Invalid ${err.path}: ${err.value}`);
   }
 
-  // Mongoose Duplicate Key
+  // ═══════ Mongoose Duplicate Key ═══════
   if (err.code === 11000) {
-    const field = Object.keys(err.keyPattern)[0];
+    const field = Object.keys(err.keyPattern || {})[0] || 'field';
     error = new ApiError(400, `Duplicate value for "${field}". Please use another.`);
   }
 
-  // Mongoose Validation
+  // ═══════ Mongoose Validation ═══════
   if (err.name === 'ValidationError') {
-    const errors = Object.values(err.errors).map(val => val.message);
+    const errors = Object.values(err.errors || {}).map(val => val.message);
     error = new ApiError(400, `Invalid input: ${errors.join(', ')}`);
   }
 
-  // JWT Errors
+  // ═══════ JWT Errors ═══════
   if (err.name === 'JsonWebTokenError') {
     error = new ApiError(401, 'Invalid token. Please log in again.');
   }
@@ -61,7 +65,7 @@ const errorHandler = (err, req, res, next) => {
     error = new ApiError(401, 'Token expired. Please log in again.');
   }
 
-  // Multer Errors
+  // ═══════ Multer Errors ═══════
   if (err.code === 'LIMIT_FILE_SIZE') {
     error = new ApiError(400, 'File too large. Maximum size is 5MB.');
   }
@@ -69,19 +73,20 @@ const errorHandler = (err, req, res, next) => {
     error = new ApiError(400, 'Unexpected field in file upload.');
   }
 
-  // Rate limit
+  // ═══════ Rate Limit ═══════
   if (err.statusCode === 429) {
     error = new ApiError(429, err.message || 'Too many requests');
   }
 
-  const statusCode = error.statusCode || err.status || 500;
+  const statusCode = error.statusCode || err.status || err.statusCode || 500;
   const message = error.message || err.message || 'Internal Server Error';
 
   res.status(statusCode).json({
     success: false,
-    message: statusCode === 500 && process.env.NODE_ENV === 'production'
-      ? 'Internal Server Error'
-      : message,
+    message:
+      statusCode === 500 && process.env.NODE_ENV === 'production'
+        ? 'Internal Server Error'
+        : message,
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 };
