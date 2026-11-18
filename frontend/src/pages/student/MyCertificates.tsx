@@ -42,66 +42,128 @@ const MyCertificates = () => {
 
   // ─── Print / Download as PDF ───
   const downloadCertificate = (cert: Certificate) => {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    notify.warning('Please allow popups to download the certificate.');
-    return;
-  }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      notify.warning('Please allow popups to download the certificate.');
+      return;
+    }
 
-  notify.success('Certificate ready to print');
+    notify.success('Certificate ready to print');
 
-  // ✅ Escape all user-controlled strings
-  const esc = (s: unknown): string =>
-    String(s ?? '').replace(
-      /[&<>"']/g,
-      (m) =>
-        ({
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#39;',
-        }[m] as string)
-    );
+    const issuedDate = new Date(cert.issuedAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
 
-  const issuedDate = new Date(cert.issuedAt).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>Certificate - ${esc(cert.course.title)}</title>
-        <style>
-          /* ... same CSS as before ... */
-        </style>
-      </head>
-      <body>
-        <div class="certificate">
-          <div class="trophy">🏆</div>
-          <h1>Certificate</h1>
-          <h2>of Completion</h2>
-          <p>This is to certify that</p>
-          <div class="name">${esc(userName)}</div>
-          <p>has successfully completed the course</p>
-          <div class="course">${esc(cert.course.title)}</div>
-          <div class="score">Score: ${esc(cert.score)}%</div>
-          <div class="meta">
-            <span>Certificate ID: ${esc(cert.certificateId)}</span>
-            <span>Issued: ${esc(issuedDate)}</span>
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Certificate - ${cert.course.title}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+              font-family: 'Georgia', serif;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              background: #f5f7fa;
+              padding: 20px;
+            }
+            .certificate {
+              border: 12px double #667eea;
+              padding: 60px 80px;
+              text-align: center;
+              background: white;
+              max-width: 900px;
+              position: relative;
+            }
+            .certificate::before {
+              content: '';
+              position: absolute;
+              inset: 20px;
+              border: 2px solid #764ba2;
+              pointer-events: none;
+            }
+            .trophy { font-size: 60px; color: #f59e0b; margin-bottom: 20px; }
+            h1 {
+              color: #667eea;
+              font-size: 2.8rem;
+              letter-spacing: 4px;
+              margin-bottom: 10px;
+              text-transform: uppercase;
+            }
+            h2 {
+              color: #764ba2;
+              font-size: 1.3rem;
+              margin-bottom: 40px;
+              font-weight: normal;
+            }
+            p { font-size: 1.1rem; color: #444; margin: 10px 0; }
+            .name {
+              font-size: 2.2rem;
+              margin: 30px 0;
+              font-weight: bold;
+              color: #1a202c;
+              border-bottom: 2px solid #667eea;
+              display: inline-block;
+              padding-bottom: 10px;
+            }
+            .course {
+              font-size: 1.6rem;
+              color: #667eea;
+              font-weight: bold;
+              margin: 20px 0;
+            }
+            .score {
+              display: inline-block;
+              background: #48bb78;
+              color: white;
+              padding: 8px 20px;
+              border-radius: 20px;
+              font-weight: bold;
+              margin: 20px 0;
+            }
+            .meta {
+              margin-top: 50px;
+              display: flex;
+              justify-content: space-between;
+              font-size: 0.9rem;
+              color: #666;
+              padding-top: 20px;
+              border-top: 1px solid #e2e8f0;
+            }
+            @media print {
+              body { background: white; }
+              .certificate { box-shadow: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="certificate">
+            <div class="trophy">🏆</div>
+            <h1>Certificate</h1>
+            <h2>of Completion</h2>
+            <p>This is to certify that</p>
+            <div class="name">${userName}</div>
+            <p>has successfully completed the course</p>
+            <div class="course">${cert.course.title}</div>
+            <div class="score">Score: ${cert.score}%</div>
+            <div class="meta">
+              <span>Certificate ID: ${cert.certificateId}</span>
+              <span>Issued: ${issuedDate}</span>
+            </div>
           </div>
-        </div>
-        <script>
-          window.onload = () => setTimeout(() => window.print(), 300);
-        </script>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-};
+          <script>
+            window.onload = () => setTimeout(() => window.print(), 300);
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   if (loading) return (
     <Container className="text-center py-5">
