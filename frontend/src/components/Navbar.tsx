@@ -20,13 +20,20 @@ const NavigationBar: React.FC = () => {
     navigate('/');
   };
 
+  // ✅ FIX: har role ke liye matching route (App.tsx mein defined)
   const profilePath =
-    user?.role === 'student' ? '/student/profile' :
-    user?.role === 'instructor' ? '/instructor/profile' : '/profile';
+    user?.role === 'student'
+      ? '/student/profile'
+      : user?.role === 'instructor'
+      ? '/instructor/profile'
+      : '/admin/profile'; // ⬅ admin ke liye /profile nahi, /admin/profile
 
   const dashboardPath =
-    user?.role === 'instructor' ? '/instructor/dashboard' :
-    user?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
+    user?.role === 'instructor'
+      ? '/instructor/dashboard'
+      : user?.role === 'admin'
+      ? '/admin/dashboard'
+      : '/dashboard';
 
   return (
     <Navbar className="navbar-gradient" variant="dark" expand="lg" sticky="top">

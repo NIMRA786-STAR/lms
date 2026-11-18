@@ -135,6 +135,14 @@ const App: React.FC = () => (
                     </PrivateRoute>
                   }
                 />
+                <Route
+                  path="/instructor/profile"
+                  element={
+                    <PrivateRoute allowedRoles={['instructor']}>
+                      <StudentProfile />
+                    </PrivateRoute>
+                  }
+                />
 
                 {/* ─── Admin ─── */}
                 <Route
@@ -169,9 +177,19 @@ const App: React.FC = () => (
                     </PrivateRoute>
                   }
                 />
+                <Route
+                  path="/admin/profile"
+                  element={
+                    <PrivateRoute allowedRoles={['admin']}>
+                      <StudentProfile />
+                    </PrivateRoute>
+                  }
+                />
 
                 {/* ─── Redirects & fallback ─── */}
                 <Route path="/home" element={<Navigate to="/" replace />} />
+                {/* Backward-compat: purana /profile → admin profile */}
+                <Route path="/profile" element={<Navigate to="/admin/profile" replace />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
