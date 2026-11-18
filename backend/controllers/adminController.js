@@ -28,10 +28,14 @@ const getSystemStats = async (req, res) => {
     });
     
     // Popular courses (most enrolled)
-    const popularCourses = await Course.find()
-      .sort({ enrolledStudents: -1 })
-      .limit(5)
-      .select('title enrolledStudents');
+    const popularCourses = await Course.aggregate([
+  {
+    $addFields: { enrolledCount: { $size: { $ifNull: ['$enrolledStudents', []] } } }
+  },
+  { $sort: { enrolledCount: -1 } },
+  { $limit: 5 },
+  { $project: { title: 1, enrolledStudents: 1, enrolledCount: 1 } }
+]);
     
     res.json({
       success: true,

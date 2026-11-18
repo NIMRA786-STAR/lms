@@ -293,6 +293,50 @@ body {
   font-weight: 500;
 }
 
+/* Card (used in TakeQuiz, Admin*, CreateCourse, ManageQuiz, EditCourse) */
+.card-modern {
+  border: none;
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  transition: background 0.25s, box-shadow 0.25s;
+}
+[data-theme='dark'] .card-modern {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Navbar dark-mode toggle button */
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #fff;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  margin-right: 4px;
+}
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+/* Icon button for dark navbar (logout) */
+.icon-btn-outline-light {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  color: #e2e8f0;
+}
+.icon-btn-outline-light:hover:not(:disabled) {
+  border-color: #c4b5fd;
+  color: #c4b5fd;
+  background: rgba(196, 181, 253, 0.08);
+}
 
 /* ═══════════════════════════════════════════
    7. IMAGES

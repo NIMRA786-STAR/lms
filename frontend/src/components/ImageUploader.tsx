@@ -26,6 +26,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ value = '', onChange, lab
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       onChange(res.data.data.url);
+      setPreview(res.data.data.url); 
       notify.success('Image uploaded successfully');
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err) ? err.response?.data?.message : 'Upload failed';

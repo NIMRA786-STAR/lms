@@ -1,4 +1,11 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from 'react';
 import axios from 'axios';
 import type { User, AuthResponse } from '../types';
 
@@ -16,7 +23,12 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<LoginResult>;
-  register: (name: string, email: string, password: string, role?: string) => Promise<RegisterResult>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    role?: string
+  ) => Promise<RegisterResult>;
   logout: () => void;
 }
 
@@ -37,19 +49,21 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem('token')
+  );
 
-  useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  // ─── Logout: pure state reset ───
+  const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
+    setToken(null);
+    setUser(null);
+    setLoading(false);
+  }, []);
 
-  const fetchUser = async () => {
+  // ─── Fetch current user from token ───
+  const fetchUser = useCallback(async () => {
     try {
       const response = await axios.get<{ data: User }>('/api/auth/me');
       setUser(response.data.data);
@@ -58,9 +72,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [logout]);
 
-  const login = async (email: string, password: string): Promise<LoginResult> => {
+  // ─── On mount / token change: fetch user only if not already set ───
+  useEffect(() => {
+    if (token && !user) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      fetchUser();
+    } else if (!token) {
+      setLoading(false);
+    }
+  }, [token, user, fetchUser]);
+
+  // ─── Login ───
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<LoginResult> => {
     try {
       const response = await axios.post<{ data: AuthResponse }>(
         '/api/auth/login',
@@ -68,10 +96,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       );
       const { token: newToken, ...userData } = response.data.data;
 
+      // ✅ Set user FIRST, then token — prevents redundant /me call
       localStorage.setItem('token', newToken);
       axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      setToken(newToken);
       setUser(userData as User);
+      setToken(newToken);
 
       return { success: true };
     } catch (error: unknown) {
@@ -82,6 +111,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // ─── Register ───
   const register = async (
     name: string,
     email: string,
@@ -90,20 +120,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   ): Promise<RegisterResult> => {
     try {
       await axios.post('/api/auth/register', { name, email, password, role });
-      return { success: true, message: 'Registration successful! Please login.' };
+      return {
+        success: true,
+        message: 'Registration successful! Please login.',
+      };
     } catch (error: unknown) {
       const message = axios.isAxiosError(error)
         ? error.response?.data?.message || 'Registration failed'
         : 'Registration failed';
       return { success: false, message };
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
-    setToken(null);
-    setUser(null);
   };
 
   return (

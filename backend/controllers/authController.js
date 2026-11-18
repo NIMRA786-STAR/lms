@@ -54,7 +54,34 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    // ═══════ DEBUG LOGS ═══════
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔍 LOGIN ATTEMPT');
+    console.log('   Received email:', JSON.stringify(email));
+    console.log('   Received password length:', password?.length);
+    console.log('   Received password:', JSON.stringify(password));
+
+    const normalizedEmail = email?.trim().toLowerCase();
+    console.log('   Normalized email:', JSON.stringify(normalizedEmail));
+
+    const user = await User.findOne({ email: normalizedEmail });
+
+    console.log('   User found:', user ? `YES (${user.email}, ${user.role})` : 'NO');
+
+    if (user) {
+      console.log('   Stored hash length:', user.password?.length);
+      console.log('   Stored hash:', user.password);
+
+      // Direct bcrypt test
+      const bcrypt = require('bcryptjs');
+      const directMatch = await bcrypt.compare(password, user.password);
+      console.log('   Direct bcrypt.compare:', directMatch ? '✅ MATCH' : '❌ MISMATCH');
+
+      // Model method test
+      const methodMatch = await user.comparePassword(password);
+      console.log('   user.comparePassword:', methodMatch ? '✅ MATCH' : '❌ MISMATCH');
+    }
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     if (user && (await user.comparePassword(password))) {
       res.json({
@@ -65,13 +92,14 @@ const loginUser = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
-          token: generateToken(user._id)
-        }
+          token: generateToken(user._id),
+        },
       });
     } else {
       res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
   } catch (error) {
+    console.error('💥 Login error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

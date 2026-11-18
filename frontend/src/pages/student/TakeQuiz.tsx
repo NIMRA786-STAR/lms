@@ -133,20 +133,19 @@ const TakeQuiz: React.FC = () => {
     if (submittedRef.current) return;
 
     timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          void handleSubmit(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+  setTimeLeft((prev) => Math.max(0, prev - 1));
+}, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [quiz, result, handleSubmit]);
+
+  useEffect(() => {
+  if (timeLeft === 0 && quiz && !result && !submittedRef.current) {
+    void handleSubmit(true);
+  }
+}, [timeLeft, quiz, result, handleSubmit]);
 
   // Stop timer once result is set
   useEffect(() => {
@@ -332,8 +331,8 @@ const TakeQuiz: React.FC = () => {
                     border: `2px solid ${selected ? '#667eea' : 'var(--border-color)'}`,
                     borderRadius: 12,
                     background: selected
-                      ? 'rgba(102,126,234,0.12)'
-                      : 'var(--bg-card)',
+                       ? 'rgba(102,126,234,0.12)'
+                       : 'var(--card-bg)',     
                     color: 'var(--text-primary)',
                     transition: 'all 0.2s',
                     fontSize: '1rem',

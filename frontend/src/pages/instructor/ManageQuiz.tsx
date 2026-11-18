@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Card, Form, Button, Spinner, Alert, Badge, Row, Col } from 'react-bootstrap';
+import React, { useState, useEffect, ChangeEvent } from 'react';
+import {
+  Container, Card, Form, Button, Spinner, Alert, Badge, Row, Col,
+} from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import IconButton from '../../components/IconButton';
 import {
-  FaPlus, FaTrash, FaSave, FaArrowLeft, FaCheckCircle, FaEdit
+  FaPlus, FaTrash, FaSave, FaArrowLeft, FaCheckCircle, FaEdit,
 } from 'react-icons/fa';
+import { notify } from '../../utils/notify';
+import type { QuizQuestion } from '../../types';
 
 interface QuestionForm {
   question: string;
@@ -14,12 +18,21 @@ interface QuestionForm {
   points: number;
 }
 
-const EMPTY_QUESTION: QuestionForm = {
+interface QuizResponse {
+  _id: string;
+  title: string;
+  description?: string;
+  passingScore: number;
+  duration: number;
+  questions: QuizQuestion[];
+}
+
+const EMPTY_QUESTION = (): QuestionForm => ({
   question: '',
   options: ['', '', '', ''],
   correctAnswer: '',
-  points: 1
-};
+  points: 1,
+});
 
 const ManageQuiz: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
@@ -29,7 +42,7 @@ const ManageQuiz: React.FC = () => {
   const [description, setDescription] = useState('');
   const [passingScore, setPassingScore] = useState(70);
   const [duration, setDuration] = useState(10);
-  const [questions, setQuestions] = useState<QuestionForm[]>([{ ...EMPTY_QUESTION }]);
+  const [questions, setQuestions] = useState<QuestionForm[]>([EMPTY_QUESTION()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -37,25 +50,31 @@ const ManageQuiz: React.FC = () => {
 
   useEffect(() => {
     fetchQuiz();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
   const fetchQuiz = async () => {
     try {
-      const res = await axios.get(`/api/quizzes/course/${courseId}`);
+      const res = await axios.get<{ data: QuizResponse }>(
+        `/api/quizzes/course/${courseId}`
+      );
       const q = res.data.data;
       setTitle(q.title || 'Final Quiz');
       setDescription(q.description || '');
-      setPassingScore(q.passingScore || 70);
-      setDuration(q.duration || 10);
+      setPassingScore(q.passingScore ?? 70);
+      setDuration(q.duration ?? 10);
       setQuestions(
         q.questions?.length
-          ? q.questions.map((item: any) => ({
+          ? q.questions.map((item) => ({
               question: item.question,
-              options: item.options || ['', '', '', ''],
-              correctAnswer: item.correctAnswer || '',
-              points: item.points || 1
+              options:
+                item.options && item.options.length === 4
+                  ? item.options
+                  : ['', '', '', ''],
+              correctAnswer: item.correctAnswer ?? '',
+              points: item.points ?? 1,
             }))
-          : [{ ...EMPTY_QUESTION }]
+          : [EMPTY_QUESTION()]
       );
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status !== 404) {
@@ -66,39 +85,47 @@ const ManageQuiz: React.FC = () => {
     }
   };
 
-  const updateQuestion = (index: number, field: keyof QuestionForm, value: any) => {
-    const updated = [...questions];
-    updated[index] = { ...updated[index], [field]: value };
-    setQuestions(updated);
+  const updateQuestion = (
+    index: number,
+    field: keyof QuestionForm,
+    value: string | number
+  ) => {
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === index ? { ...q, [field]: value } : q))
+    );
   };
 
   const updateOption = (qIndex: number, oIndex: number, value: string) => {
-    const updated = [...questions];
-    const opts = [...updated[qIndex].options];
-    opts[oIndex] = value;
-    updated[qIndex] = { ...updated[qIndex], options: opts };
-    setQuestions(updated);
+    setQuestions((prev) =>
+      prev.map((q, i) =>
+        i === qIndex
+          ? { ...q, options: q.options.map((o, j) => (j === oIndex ? value : o)) }
+          : q
+      )
+    );
   };
 
-  const addQuestion = () => {
-    setQuestions([...questions, { ...EMPTY_QUESTION }]);
-  };
+  const addQuestion = () =>
+    setQuestions((prev) => [...prev, EMPTY_QUESTION()]);
 
   const removeQuestion = (index: number) => {
     if (questions.length === 1) {
-      alert('At least one question is required');
+      notify.warning('At least one question is required');
       return;
     }
-    setQuestions(questions.filter((_, i) => i !== index));
+    setQuestions((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = (): string | null => {
     if (!title.trim()) return 'Quiz title is required';
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.question.trim()) return `Question ${i + 1}: question text is required`;
-      if (q.options.some((o) => !o.trim())) return `Question ${i + 1}: all 4 options are required`;
-      if (!q.correctAnswer.trim()) return `Question ${i + 1}: correct answer is required`;
+      if (!q.question.trim())
+        return `Question ${i + 1}: question text is required`;
+      if (q.options.some((o) => !o.trim()))
+        return `Question ${i + 1}: all 4 options are required`;
+      if (!q.correctAnswer.trim())
+        return `Question ${i + 1}: correct answer is required`;
       if (!q.options.includes(q.correctAnswer))
         return `Question ${i + 1}: correct answer must match one of the options`;
     }
@@ -111,6 +138,7 @@ const ManageQuiz: React.FC = () => {
     const validationError = validate();
     if (validationError) {
       setError(validationError);
+      notify.warning(validationError);
       return;
     }
 
@@ -121,18 +149,30 @@ const ManageQuiz: React.FC = () => {
         description,
         passingScore,
         duration,
-        questions
+        questions,
       });
       setSuccess('Quiz saved successfully!');
+      notify.success('Quiz saved');
       setTimeout(() => navigate('/instructor/dashboard'), 1500);
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err)
         ? err.response?.data?.message
         : 'Failed to save quiz';
       setError(msg || 'Failed to save quiz');
+      notify.error(msg || 'Failed to save quiz');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleScoreChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    setPassingScore(Math.max(0, Math.min(100, v)));
+  };
+
+  const handleDurationChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const v = Number(e.target.value);
+    setDuration(Math.max(0, v));
   };
 
   if (loading) {
@@ -161,8 +201,7 @@ const ManageQuiz: React.FC = () => {
       {error && <Alert variant="danger">{error}</Alert>}
       {success && <Alert variant="success">{success}</Alert>}
 
-      {/* Quiz Settings */}
-      <Card className="mb-4 shadow-sm" style={{ borderRadius: 16, border: 'none' }}>
+      <Card className="card-modern mb-4">
         <Card.Body className="p-4">
           <h5 className="mb-3">Quiz Settings</h5>
           <Row className="g-3">
@@ -184,18 +223,18 @@ const ManageQuiz: React.FC = () => {
                   min={0}
                   max={100}
                   value={passingScore}
-                  onChange={(e) => setPassingScore(Number(e.target.value))}
+                  onChange={handleScoreChange}
                 />
               </Form.Group>
             </Col>
             <Col md={3}>
               <Form.Group>
-                <Form.Label>Duration (minutes)</Form.Label>
+                <Form.Label>Duration (min)</Form.Label>
                 <Form.Control
                   type="number"
                   min={0}
                   value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
+                  onChange={handleDurationChange}
                   placeholder="0 = no limit"
                 />
               </Form.Group>
@@ -216,7 +255,6 @@ const ManageQuiz: React.FC = () => {
         </Card.Body>
       </Card>
 
-      {/* Questions */}
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h5 className="mb-0">Questions ({questions.length})</h5>
         <IconButton
@@ -229,14 +267,13 @@ const ManageQuiz: React.FC = () => {
       </div>
 
       {questions.map((q, qIndex) => (
-        <Card
-          key={qIndex}
-          className="mb-3 shadow-sm"
-          style={{ borderRadius: 16, border: 'none' }}
-        >
+        <Card key={qIndex} className="card-modern mb-3">
           <Card.Body className="p-4">
             <div className="d-flex justify-content-between align-items-start mb-3">
-              <Badge bg="primary" style={{ fontSize: '1rem', padding: '8px 14px', borderRadius: 10 }}>
+              <Badge
+                bg="primary"
+                style={{ fontSize: '1rem', padding: '8px 14px', borderRadius: 10 }}
+              >
                 Question {qIndex + 1}
               </Badge>
               <IconButton
@@ -276,7 +313,7 @@ const ManageQuiz: React.FC = () => {
                       color: isCorrect ? 'white' : '#4a5568',
                       fontWeight: 700,
                       fontSize: '0.85rem',
-                      flexShrink: 0
+                      flexShrink: 0,
                     }}
                   >
                     {String.fromCharCode(65 + oIndex)}
@@ -299,7 +336,7 @@ const ManageQuiz: React.FC = () => {
               );
             })}
 
-            <div className="d-flex align-items-center gap-2 mt-2">
+            <div className="d-flex align-items-center gap-2 mt-2 flex-wrap">
               <Form.Label className="mb-0 small text-muted">
                 Correct answer:
               </Form.Label>
@@ -311,7 +348,9 @@ const ManageQuiz: React.FC = () => {
                   type="number"
                   min={1}
                   value={q.points}
-                  onChange={(e) => updateQuestion(qIndex, 'points', Number(e.target.value))}
+                  onChange={(e) =>
+                    updateQuestion(qIndex, 'points', Number(e.target.value))
+                  }
                   size="sm"
                 />
               </Form.Group>

@@ -32,6 +32,7 @@ import MyCertificates from './pages/student/MyCertificates';
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
 import CreateCourse from './pages/instructor/CreateCourse';
 import EditCourse from './pages/instructor/EditCourse';
+import ManageQuiz from './pages/instructor/ManageQuiz';
 
 // Admin
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -140,6 +141,15 @@ const App: React.FC = () => (
                   element={
                     <PrivateRoute allowedRoles={['instructor']}>
                       <StudentProfile />
+                    </PrivateRoute>
+                  }
+                />
+
+                   <Route
+                  path="/instructor/courses/:courseId/quiz"
+                  element={
+                    <PrivateRoute allowedRoles={['instructor', 'admin']}>
+                      <ManageQuiz />
                     </PrivateRoute>
                   }
                 />

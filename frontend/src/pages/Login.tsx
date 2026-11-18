@@ -112,15 +112,16 @@ const Login: React.FC = () => {
                     <span className="small">No account? <Link to="/register">Register</Link></span>
                     <a href="#" className="small text-decoration-none" onClick={(e) => { e.preventDefault(); setMode('forgot'); clearMessages(); }}>Forgot password?</a>
                   </div>
-                  <hr />
-                  <p className="text-center text-muted small mb-0">
-                    <strong>Demo Accounts:</strong><br />
-                    Admin: admin@example.com / admin123<br />
-                    Instructor: instructor@example.com / instructor123<br />
-                    Student: student@example.com / student123
-                  </p>
-                </>
-              )}
+     
+    <hr />
+    <p className="text-center text-muted small mb-0">
+      <strong>Demo Accounts:</strong><br />
+      Admin: admin@example.com / admin123<br />
+      Instructor: instructor@example.com / instructor123<br />
+      Student: student@example.com / student123
+    </p>
+  </>
+)}
 
               {mode === 'forgot' && (
                 <>

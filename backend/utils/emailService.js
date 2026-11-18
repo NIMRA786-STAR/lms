@@ -1,9 +1,24 @@
 const nodemailer = require('nodemailer');
 
 // ═══════════════════════════════════════════════════════════
+// HTML ESCAPE HELPER — XSS-safe interpolation
+// ═══════════════════════════════════════════════════════════
+const esc = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[c])
+  );
+
+// ═══════════════════════════════════════════════════════════
 // LAZY TRANSPORTER
-// - If Gmail/real SMTP creds exist in .env → use them
-// - Otherwise → fallback to Ethereal test account (dev only)
+// - If real SMTP creds exist in .env → use them
+// - Production without creds → throw (fail loud)
+// - Dev without creds → fallback to Ethereal test account
 // ═══════════════════════════════════════════════════════════
 let transporter = null;
 let usingEthereal = false;
@@ -30,7 +45,15 @@ const getTransporter = async () => {
     return transporter;
   }
 
-  // Fallback: Ethereal
+  // ✅ PRODUCTION GUARD — never silently fall back to Ethereal
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'EMAIL_HOST, EMAIL_USER, and EMAIL_PASS must be set in production. ' +
+        'Ethereal fallback is not allowed in production.'
+    );
+  }
+
+  // Dev fallback: Ethereal
   const testAccount = await nodemailer.createTestAccount();
   transporter = nodemailer.createTransport({
     host: testAccount.smtp.host,
@@ -60,7 +83,9 @@ const safeSend = async (mailOptions) => {
   try {
     const tx = await getTransporter();
     const info = await tx.sendMail(mailOptions);
-    console.log(`📧 Email sent → ${mailOptions.to} | subject: "${mailOptions.subject}"`);
+    console.log(
+      `📧 Email sent → ${mailOptions.to} | subject: "${mailOptions.subject}"`
+    );
     logPreviewUrl(info);
     return { success: true, messageId: info.messageId };
   } catch (err) {
@@ -79,7 +104,12 @@ const sendEnrollmentEmail = async ({
   courseId,
   isPaid = false,
 }) => {
-  const courseUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/courses/${courseId}`;
+  const courseUrl = `${
+    process.env.FRONTEND_URL || 'http://localhost:5173'
+  }/courses/${encodeURIComponent(courseId)}`;
+
+  const safeStudentName = esc(studentName);
+  const safeCourseTitle = esc(courseTitle);
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
@@ -87,10 +117,14 @@ const sendEnrollmentEmail = async ({
         <h1 style="margin: 0; font-size: 24px;">🎉 Enrollment Confirmed!</h1>
       </div>
       <div style="background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 16px 16px;">
-        <p>Hi <strong>${studentName}</strong>,</p>
+        <p>Hi <strong>${safeStudentName}</strong>,</p>
         <p>You have successfully enrolled in:</p>
-        <h2 style="color: #667eea; margin: 16px 0;">${courseTitle}</h2>
-        ${isPaid ? '<p style="color: #48bb78;"><strong>✅ Payment received</strong></p>' : ''}
+        <h2 style="color: #667eea; margin: 16px 0;">${safeCourseTitle}</h2>
+        ${
+          isPaid
+            ? '<p style="color: #48bb78;"><strong>✅ Payment received</strong></p>'
+            : ''
+        }
         <p>You can start learning immediately by clicking the button below:</p>
         <div style="text-align: center; margin: 32px 0;">
           <a href="${courseUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 14px 32px; border-radius: 12px; text-decoration: none; font-weight: bold;">
@@ -107,7 +141,7 @@ const sendEnrollmentEmail = async ({
   return safeSend({
     from: `"LMS Support" <${process.env.EMAIL_USER || 'no-reply@lms.local'}>`,
     to,
-    subject: `Enrollment Confirmed: ${courseTitle}`,
+    subject: `Enrollment Confirmed: ${courseTitle}`, // subject plain text (email clients display it as-is)
     html,
   });
 };
@@ -123,17 +157,22 @@ const sendCertificateEmail = async ({
   certificateId,
   pdfBuffer,
 }) => {
+  const safeStudentName = esc(studentName);
+  const safeCourseTitle = esc(courseTitle);
+  const safeCertificateId = esc(certificateId);
+  const safeScore = esc(score);
+
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
       <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 32px; border-radius: 16px 16px 0 0; text-align: center; color: white;">
         <div style="font-size: 48px;">🏆</div>
-        <h1 style="margin: 8px 0 0; font-size: 24px;">Congratulations, ${studentName}!</h1>
+        <h1 style="margin: 8px 0 0; font-size: 24px;">Congratulations, ${safeStudentName}!</h1>
       </div>
       <div style="background: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 16px 16px;">
-        <p>You've successfully completed <strong>${courseTitle}</strong> with a score of <strong>${score}%</strong>.</p>
+        <p>You've successfully completed <strong>${safeCourseTitle}</strong> with a score of <strong>${safeScore}%</strong>.</p>
         <p>Your certificate is attached to this email as a PDF. You can download and print it anytime.</p>
         <div style="background: #f0fff4; border: 1px solid #48bb78; border-radius: 12px; padding: 16px; margin: 24px 0;">
-          <p style="margin: 0; color: #276749;"><strong>Certificate ID:</strong> ${certificateId}</p>
+          <p style="margin: 0; color: #276749;"><strong>Certificate ID:</strong> ${safeCertificateId}</p>
         </div>
         <p style="color: #718096; font-size: 14px;">
           This certificate is also available in your LMS account under "My Certificates".
@@ -144,8 +183,14 @@ const sendCertificateEmail = async ({
 
   const attachments = [];
   if (pdfBuffer) {
+    // Sanitize filename — remove path separators and non-safe chars
+    const safeFilename = String(courseTitle)
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 80);
+
     attachments.push({
-      filename: `Certificate-${courseTitle.replace(/\s+/g, '-')}.pdf`,
+      filename: `Certificate-${safeFilename || 'course'}.pdf`,
       content: pdfBuffer,
       contentType: 'application/pdf',
     });
