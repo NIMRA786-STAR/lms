@@ -2,6 +2,7 @@ const Stripe = require('stripe');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
 const User = require('../models/User');
+const { sendEnrollmentEmail } = require('../utils/emailService');
 
 // ═══════════════════════════════════════════════════════════
 // LAZY STRIPE INIT (server won't crash if key missing)
@@ -12,9 +13,7 @@ const getStripe = () => {
   if (stripeClient) return stripeClient;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || !key.startsWith('sk_')) {
-    throw new Error(
-      'STRIPE_SECRET_KEY missing or invalid in backend/.env'
-    );
+    throw new Error('STRIPE_SECRET_KEY missing or invalid in backend/.env');
   }
   stripeClient = new Stripe(key);
   return stripeClient;
@@ -35,19 +34,19 @@ const createCheckoutSession = async (req, res) => {
     if (course.price === 0) {
       return res.status(400).json({
         success: false,
-        message: 'This course is free. Use the enroll endpoint instead.'
+        message: 'This course is free. Use the enroll endpoint instead.',
       });
     }
 
     // Already enrolled? Block payment
     const existing = await Enrollment.findOne({
       student: req.user._id,
-      course: course._id
+      course: course._id,
     });
     if (existing) {
       return res.status(400).json({
         success: false,
-        message: 'You are already enrolled in this course'
+        message: 'You are already enrolled in this course',
       });
     }
 
@@ -61,12 +60,12 @@ const createCheckoutSession = async (req, res) => {
             product_data: {
               name: course.title,
               description: course.description.slice(0, 200),
-              images: course.thumbnail ? [course.thumbnail] : []
+              images: course.thumbnail ? [course.thumbnail] : [],
             },
-            unit_amount: Math.round(course.price * 100)
+            unit_amount: Math.round(course.price * 100),
           },
-          quantity: 1
-        }
+          quantity: 1,
+        },
       ],
       mode: 'payment',
       success_url: `${process.env.FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -75,14 +74,14 @@ const createCheckoutSession = async (req, res) => {
       metadata: {
         courseId: course._id.toString(),
         studentId: req.user._id.toString(),
-        studentName: req.user.name
+        studentName: req.user.name,
       },
       payment_intent_data: {
         metadata: {
           courseId: course._id.toString(),
-          studentId: req.user._id.toString()
-        }
-      }
+          studentId: req.user._id.toString(),
+        },
+      },
     });
 
     res.json({ success: true, url: session.url, sessionId: session.id });
@@ -93,7 +92,7 @@ const createCheckoutSession = async (req, res) => {
       message: err.message,
       hint: err.message.includes('STRIPE_SECRET_KEY')
         ? 'Add STRIPE_SECRET_KEY to backend/.env and restart server'
-        : undefined
+        : undefined,
     });
   }
 };
@@ -132,7 +131,7 @@ const stripeWebhook = async (req, res) => {
       // Check if enrollment already exists (idempotency)
       const existing = await Enrollment.findOne({
         student: studentId,
-        course: courseId
+        course: courseId,
       });
 
       if (existing) {
@@ -146,15 +145,39 @@ const stripeWebhook = async (req, res) => {
         course: courseId,
         progress: 0,
         completedLessons: [],
-        status: 'active'
+        status: 'active',
       });
 
       // Add student to course's enrolledStudents
       await Course.findByIdAndUpdate(courseId, {
-        $addToSet: { enrolledStudents: studentId }
+        $addToSet: { enrolledStudents: studentId },
       });
 
       console.log(`✅ Enrolled via Stripe: ${studentId} → ${courseId}`);
+
+      // ═══════ Send enrollment confirmation email (fire-and-forget) ═══════
+      // Fetch student + course info for the email body
+      try {
+        const [student, paidCourse] = await Promise.all([
+          User.findById(studentId).select('name email'),
+          Course.findById(courseId).select('title'),
+        ]);
+
+        if (student && student.email && paidCourse) {
+          sendEnrollmentEmail({
+            to: student.email,
+            studentName: student.name,
+            courseTitle: paidCourse.title,
+            courseId: paidCourse._id,
+            isPaid: true,
+          }).catch((err) => {
+            // Email failure must NOT affect webhook response
+            console.error('Enrollment email failed (paid):', err?.message);
+          });
+        }
+      } catch (emailErr) {
+        console.error('Enrollment email lookup failed:', emailErr.message);
+      }
     } catch (err) {
       console.error('Enrollment creation failed:', err.message);
       // Don't return 500 — Stripe will retry. Return 200 to avoid infinite retries.
@@ -177,11 +200,11 @@ const stripeWebhook = async (req, res) => {
         // Remove enrollment
         await Enrollment.findOneAndDelete({
           student: studentId,
-          course: courseId
+          course: courseId,
         });
         // Remove from course
         await Course.findByIdAndUpdate(courseId, {
-          $pull: { enrolledStudents: studentId }
+          $pull: { enrolledStudents: studentId },
         });
         console.log(`🔄 Refund processed: unenrolled ${studentId} from ${courseId}`);
       } catch (err) {
@@ -202,14 +225,14 @@ const verifySession = async (req, res) => {
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.retrieve(req.params.sessionId, {
-      expand: ['line_items', 'payment_intent']
+      expand: ['line_items', 'payment_intent'],
     });
 
     if (session.payment_status !== 'paid') {
       return res.status(400).json({
         success: false,
         message: 'Payment not completed',
-        status: session.payment_status
+        status: session.payment_status,
       });
     }
 
@@ -218,7 +241,7 @@ const verifySession = async (req, res) => {
     const course = await Course.findById(courseId).populate('instructor', 'name');
     const enrollment = await Enrollment.findOne({
       student: studentId,
-      course: courseId
+      course: courseId,
     });
 
     res.json({
@@ -231,12 +254,12 @@ const verifySession = async (req, res) => {
           ? {
               _id: course._id,
               title: course.title,
-              instructor: course.instructor?.name || 'Instructor'
+              instructor: course.instructor?.name || 'Instructor',
             }
           : null,
         enrolled: !!enrollment,
-        customerEmail: session.customer_email
-      }
+        customerEmail: session.customer_email,
+      },
     });
   } catch (err) {
     console.error('verifySession error:', err.message);
@@ -247,5 +270,5 @@ const verifySession = async (req, res) => {
 module.exports = {
   createCheckoutSession,
   stripeWebhook,
-  verifySession
+  verifySession,
 };

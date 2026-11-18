@@ -6,6 +6,7 @@ import {
   FaRedo
 } from 'react-icons/fa';
 import IconButton from './IconButton';
+import { notify } from '../utils/notify';
 
 interface Quiz {
   _id: string;
@@ -89,19 +90,14 @@ const QuizSection: React.FC<QuizSectionProps> = ({ courseId, courseTitle }) => {
   };
 
   const submitQuiz = async () => {
-    if (!quiz) return;
-
-    const unanswered = quiz.questions.filter(
-      q => answers[q._id] === undefined
+  if (!quiz) return;
+  const unanswered = quiz.questions.filter(q => answers[q._id] === undefined);
+  if (unanswered.length > 0) {
+    const ok = await notify.confirm(
+      `${unanswered.length} question(s) unanswered. Submit anyway?`
     );
-    if (unanswered.length > 0) {
-      if (
-        !window.confirm(
-          `${unanswered.length} question(s) unanswered. Submit anyway?`
-        )
-      )
-        return;
-    }
+    if (!ok) return;
+  }
 
     setSubmitting(true);
     setError('');

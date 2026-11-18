@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import IconButton from '../components/IconButton';
 import axios from 'axios';
+import { notify } from '../utils/notify';
 import { FaSignInAlt, FaPaperPlane, FaLock, FaArrowLeft } from 'react-icons/fa';
 
 type Mode = 'login' | 'forgot' | 'reset';
@@ -23,88 +24,67 @@ const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (resetToken) setMode('reset');
-  }, [resetToken]);
+  useEffect(() => { if (resetToken) setMode('reset'); }, [resetToken]);
 
-  const clearMessages = () => {
-    setError('');
-    setSuccess('');
-  };
+  const clearMessages = () => { setError(''); setSuccess(''); };
 
-  // ─── Login ───
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessages();
+    setLoading(true); clearMessages();
     const result = await login(email, password);
     if (result.success) {
+      notify.success('Welcome back! 👋');
       navigate('/');
     } else {
+      notify.error(result.message || 'Login failed');
       setError(result.message || 'Login failed');
     }
     setLoading(false);
   };
 
-  // ─── Forgot Password ───
   const handleForgot = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
-    clearMessages();
+    setLoading(true); clearMessages();
     try {
       const res = await axios.post('/api/auth/forgot-password', { email });
-      setSuccess(res.data.message || 'Reset link sent');
+      const msg = res.data.message || 'Reset link sent';
+      notify.success('📧 ' + msg + ' (Check inbox + spam folder)');
+      setSuccess(msg);
     } catch (err: unknown) {
-      const fallback =
-        err instanceof Error ? err.message : 'Failed to send reset link';
-      if (typeof err === 'object' && err !== null && 'response' in err) {
-        const axiosErr = err as {
-          response?: { data?: { message?: string } };
-        };
-        setError(axiosErr.response?.data?.message || fallback);
-      } else {
-        setError(fallback);
+      let errorMsg = 'Failed to send reset link';
+      if (axios.isAxiosError(err)) {
+        errorMsg = err.response?.data?.message || errorMsg;
       }
-    } finally {
-      setLoading(false);
-    }
+      notify.error(errorMsg);
+      setError(errorMsg);
+    } finally { setLoading(false); }
   };
 
-  // ─── Reset Password ───
   const handleReset = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     clearMessages();
     if (newPassword !== confirmPassword) {
+      notify.warning('Passwords do not match');
       return setError('Passwords do not match');
     }
     if (newPassword.length < 6) {
+      notify.warning('Password must be at least 6 characters');
       return setError('Password must be at least 6 characters');
     }
     setLoading(true);
     try {
-      const res = await axios.post(
-        `/api/auth/reset-password/${resetToken}`,
-        { password: newPassword }
-      );
-      setSuccess(res.data.message || 'Password reset successful');
-      setTimeout(() => {
-        navigate('/login');
-        window.location.reload();
-      }, 2000);
+      const res = await axios.post(`/api/auth/reset-password/${resetToken}`, { password: newPassword });
+      const msg = res.data.message || 'Password reset successful';
+      // ✅ FIXED: correct message (was "Registration successful")
+      notify.success('✅ Password reset successful! Redirecting to login…');
+      setSuccess(msg);
+      setTimeout(() => { navigate('/login'); window.location.reload(); }, 2000);
     } catch (err: unknown) {
-      const fallback =
-        err instanceof Error ? err.message : 'Reset failed';
-      if (typeof err === 'object' && err !== null && 'response' in err) {
-        const axiosErr = err as {
-          response?: { data?: { message?: string } };
-        };
-        setError(axiosErr.response?.data?.message || fallback);
-      } else {
-        setError(fallback);
-      }
-    } finally {
-      setLoading(false);
-    }
+      let errorMsg = 'Reset failed';
+      if (axios.isAxiosError(err)) errorMsg = err.response?.data?.message || errorMsg;
+      notify.error(errorMsg);
+      setError(errorMsg);
+    } finally { setLoading(false); }
   };
 
   return (
@@ -113,7 +93,6 @@ const Login: React.FC = () => {
         <Col md={6}>
           <Card className="shadow" style={{ border: 'none', borderRadius: 20 }}>
             <Card.Body className="p-5">
-              {/* ═══ LOGIN MODE ═══ */}
               {mode === 'login' && (
                 <>
                   <h2 className="text-center mb-4">Login</h2>
@@ -121,106 +100,48 @@ const Login: React.FC = () => {
                   <Form onSubmit={handleLogin}>
                     <Form.Group className="mb-3">
                       <Form.Label>Email Address</Form.Label>
-                      <Form.Control
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        disabled={loading}
-                      />
+                      <Form.Control type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={loading} />
                     </Form.Group>
                     <Form.Group className="mb-3">
                       <Form.Label>Password</Form.Label>
-                      <Form.Control
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        disabled={loading}
-                      />
+                      <Form.Control type="password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={loading} />
                     </Form.Group>
-                    <IconButton
-                      icon={FaSignInAlt}
-                      label={loading ? 'Logging in…' : 'Login'}
-                      variant="primary"
-                      type="submit"
-                      disabled={loading}
-                      style={{ width: '100%', justifyContent: 'center' }}
-                    />
+                    <IconButton icon={FaSignInAlt} label={loading ? 'Logging in…' : 'Login'} variant="primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }} />
                   </Form>
                   <div className="d-flex justify-content-between mt-3">
-                    <span className="small">
-                      No account? <Link to="/register">Register</Link>
-                    </span>
-                    <a
-                      href="#"
-                      className="small text-decoration-none"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setMode('forgot');
-                        clearMessages();
-                      }}
-                    >
-                      Forgot password?
-                    </a>
+                    <span className="small">No account? <Link to="/register">Register</Link></span>
+                    <a href="#" className="small text-decoration-none" onClick={(e) => { e.preventDefault(); setMode('forgot'); clearMessages(); }}>Forgot password?</a>
                   </div>
                   <hr />
                   <p className="text-center text-muted small mb-0">
-                    <strong>Demo Accounts:</strong>
-                    <br />
-                    Admin: admin@example.com / admin123
-                    <br />
-                    Instructor: instructor@example.com / instructor123
-                    <br />
+                    <strong>Demo Accounts:</strong><br />
+                    Admin: admin@example.com / admin123<br />
+                    Instructor: instructor@example.com / instructor123<br />
                     Student: student@example.com / student123
                   </p>
                 </>
               )}
 
-              {/* ═══ FORGOT MODE ═══ */}
               {mode === 'forgot' && (
                 <>
                   <h2 className="text-center mb-4">Forgot Password</h2>
                   {error && <Alert variant="danger">{error}</Alert>}
-                  {success && <Alert variant="success">{success}</Alert>}
+                  {success && <Alert variant="success">{success}<br /><small>Check your inbox and spam folder.</small></Alert>}
                   <Form onSubmit={handleForgot}>
                     <Form.Group className="mb-3">
                       <Form.Label>Email Address</Form.Label>
-                      <Form.Control
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        disabled={loading}
-                        placeholder="Enter your registered email"
-                      />
+                      <Form.Control type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={loading} placeholder="Enter your registered email" />
                     </Form.Group>
-                    <IconButton
-                      icon={FaPaperPlane}
-                      label={loading ? 'Sending…' : 'Send Reset Link'}
-                      variant="primary"
-                      type="submit"
-                      disabled={loading}
-                      style={{ width: '100%', justifyContent: 'center' }}
-                    />
+                    <IconButton icon={FaPaperPlane} label={loading ? 'Sending…' : 'Send Reset Link'} variant="primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }} />
                   </Form>
                   <p className="text-center mt-3 mb-0">
-                    <a
-                      href="#"
-                      className="small text-decoration-none d-inline-flex align-items-center gap-1"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setMode('login');
-                        clearMessages();
-                      }}
-                    >
+                    <a href="#" className="small text-decoration-none d-inline-flex align-items-center gap-1" onClick={(e) => { e.preventDefault(); setMode('login'); clearMessages(); }}>
                       <FaArrowLeft /> Back to Login
                     </a>
                   </p>
                 </>
               )}
 
-              {/* ═══ RESET MODE ═══ */}
               {mode === 'reset' && (
                 <>
                   <h2 className="text-center mb-4">Reset Password</h2>
@@ -229,44 +150,16 @@ const Login: React.FC = () => {
                   <Form onSubmit={handleReset}>
                     <Form.Group className="mb-3">
                       <Form.Label>New Password</Form.Label>
-                      <Form.Control
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        required
-                        minLength={6}
-                        disabled={loading}
-                      />
+                      <Form.Control type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={6} disabled={loading} />
                     </Form.Group>
                     <Form.Group className="mb-3">
                       <Form.Label>Confirm Password</Form.Label>
-                      <Form.Control
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        required
-                        disabled={loading}
-                      />
+                      <Form.Control type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={loading} />
                     </Form.Group>
-                    <IconButton
-                      icon={FaLock}
-                      label={loading ? 'Resetting…' : 'Reset Password'}
-                      variant="primary"
-                      type="submit"
-                      disabled={loading}
-                      style={{ width: '100%', justifyContent: 'center' }}
-                    />
+                    <IconButton icon={FaLock} label={loading ? 'Resetting…' : 'Reset Password'} variant="primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }} />
                   </Form>
                   <p className="text-center mt-3 mb-0">
-                    <a
-                      href="#"
-                      className="small text-decoration-none d-inline-flex align-items-center gap-1"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setMode('login');
-                        clearMessages();
-                      }}
-                    >
+                    <a href="#" className="small text-decoration-none d-inline-flex align-items-center gap-1" onClick={(e) => { e.preventDefault(); setMode('login'); clearMessages(); }}>
                       <FaArrowLeft /> Back to Login
                     </a>
                   </p>

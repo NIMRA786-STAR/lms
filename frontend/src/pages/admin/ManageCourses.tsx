@@ -4,9 +4,15 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import IconButton from '../../components/IconButton';
 import { FaEye, FaTrash } from 'react-icons/fa';
+import { notify } from '../../utils/notify';
+
+interface CourseRow {
+  _id: string; title: string; category: string; price: number;
+  instructor?: { name?: string }; enrolledStudents?: string[];
+}
 
 const ManageCourses = () => {
-  const [courses, setCourses] = useState([]);
+  const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -16,39 +22,35 @@ const ManageCourses = () => {
       setCourses(res.data.data);
     } catch {
       setError('Failed to load courses');
-    } finally {
-      setLoading(false);
-    }
+      notify.error('Failed to load courses');
+    } finally { setLoading(false); }
   };
-
   useEffect(() => { fetchCourses(); }, []);
 
-  const handleDelete = async (id, title) => {
-    if (!window.confirm(`Delete "${title}"?`)) return;
+  const handleDelete = async (id: string, title: string) => {
+    const ok = await notify.confirm(`Delete "${title}"? All enrollments will be removed.`);
+    if (!ok) return;
     try {
       await axios.delete(`/api/courses/${id}`);
+      notify.success('Course deleted');
       fetchCourses();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Delete failed');
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message : 'Delete failed';
+      notify.error(msg || 'Delete failed');
     }
   };
 
   if (loading) return (
-    <Container className="text-center py-5">
-      <Spinner animation="border" variant="primary" />
-    </Container>
+    <Container className="text-center py-5"><Spinner animation="border" variant="primary" /></Container>
   );
 
   return (
     <Container className="py-4">
-      <h2 className="mb-4">Manage Courses</h2>
+      <h2 className="section-heading mb-4">Manage Courses</h2>
       {error && <Alert variant="danger">{error}</Alert>}
       <Table responsive hover>
-        <thead style={{ background: '#f7fafc' }}>
-          <tr>
-            <th>#</th><th>Title</th><th>Instructor</th>
-            <th>Category</th><th>Price</th><th>Students</th><th>Actions</th>
-          </tr>
+        <thead style={{ background: 'var(--bg-secondary)' }}>
+          <tr><th>#</th><th>Title</th><th>Instructor</th><th>Category</th><th>Price</th><th>Students</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {courses.map((c, i) => (
@@ -64,8 +66,7 @@ const ManageCourses = () => {
                   <Link to={`/courses/${c._id}`} className="text-decoration-none">
                     <IconButton icon={FaEye} label="View" variant="info" size="sm" />
                   </Link>
-                  <IconButton icon={FaTrash} variant="danger" size="sm"
-                    onClick={() => handleDelete(c._id, c.title)} />
+                  <IconButton icon={FaTrash} variant="danger" size="sm" onClick={() => handleDelete(c._id, c.title)} />
                 </div>
               </td>
             </tr>

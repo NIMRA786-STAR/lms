@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Form, Alert, Spinner } from 'react-bootstrap
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
 import IconButton from '../../components/IconButton';
+import { notify } from '../../utils/notify';
 import { FaSave, FaUndo, FaSignOutAlt, FaUser } from 'react-icons/fa';
 
 const StudentProfile = () => {
@@ -33,18 +34,20 @@ const StudentProfile = () => {
     }
   };
 
-  const handleChange = (e) =>
+  const handleChange = (e: any) =>
     setProfile({ ...profile, [e.target.name]: e.target.value });
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setSaving(true);
     setMessage({ type: '', text: '' });
     try {
-      await axios.put(`/api/users/${user._id}`, profile);
+      await axios.put(`/api/users/${user?._id}`, profile);
+      notify.success('Profile updated successfully!');
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setTimeout(() => window.location.reload(), 1500);
-    } catch (error) {
+    } catch (error: any) {
+      notify.error(error.response?.data?.message || 'Failed to update profile');
       setMessage({
         type: 'danger',
         text: error.response?.data?.message || 'Failed to update profile'
@@ -52,6 +55,11 @@ const StudentProfile = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    notify.success('Logged out successfully');
   };
 
   if (loading) return (
@@ -86,7 +94,7 @@ const StudentProfile = () => {
               </p>
               <hr />
               <IconButton icon={FaSignOutAlt} label="Logout" variant="danger"
-                onClick={logout} style={{ width: '100%', justifyContent: 'center' }} />
+                onClick={handleLogout} style={{ width: '100%', justifyContent: 'center' }} />
             </Card.Body>
           </Card>
 
@@ -95,7 +103,7 @@ const StudentProfile = () => {
               <h6 className="mb-3">Account Stats</h6>
               <div className="d-flex justify-content-between mb-2">
                 <span>Member Since:</span>
-                <strong>{new Date(user?.createdAt).toLocaleDateString()}</strong>
+                <strong>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</strong>
               </div>
               <div className="d-flex justify-content-between mb-2">
                 <span>Status:</span>

@@ -6,6 +6,7 @@ import {
   FaTrophy, FaCalendarAlt, FaExternalLinkAlt, FaDownload
 } from 'react-icons/fa';
 import IconButton from '../../components/IconButton';
+import { notify } from '../../utils/notify';
 
 interface Certificate {
   _id: string;
@@ -43,9 +44,11 @@ const MyCertificates = () => {
   const downloadCertificate = (cert: Certificate) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('Please allow popups to download the certificate.');
+      notify.warning('Please allow popups to download the certificate.');
       return;
     }
+
+    notify.success('Certificate ready to print');
 
     const issuedDate = new Date(cert.issuedAt).toLocaleDateString('en-US', {
       year: 'numeric',

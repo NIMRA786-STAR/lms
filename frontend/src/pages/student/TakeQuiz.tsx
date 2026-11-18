@@ -4,6 +4,7 @@ import {
 } from 'react-bootstrap';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { notify } from '../../utils/notify';
 import {
   FaCheckCircle, FaTimesCircle, FaClock, FaArrowLeft, FaTrophy
 } from 'react-icons/fa';
@@ -38,7 +39,6 @@ const TakeQuiz: React.FC = () => {
   const navigate = useNavigate();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
-  // ✅ String-based answers (option text)
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -50,31 +50,36 @@ const TakeQuiz: React.FC = () => {
   const answersRef = useRef<Record<string, string>>({});
   const quizRef = useRef<Quiz | null>(null);
   const submittedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ─── Fetch quiz ───
   useEffect(() => {
+    let cancelled = false;
     const fetchQuiz = async () => {
       try {
         const res = await axios.get(`/api/quizzes/course/${courseId}/start`);
+        if (cancelled) return;
         const data = res.data.data as Quiz;
         setQuiz(data);
         quizRef.current = data;
         setTimeLeft((data.duration || 0) * 60);
       } catch (err: unknown) {
+        if (cancelled) return;
         if (axios.isAxiosError(err)) {
           setError(err.response?.data?.message || 'Failed to load quiz');
         } else {
           setError('Failed to load quiz');
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchQuiz();
+    return () => { cancelled = true; };
   }, [courseId]);
 
   // ─── Submit ───
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (autoSubmit = false) => {
     if (submittedRef.current) return;
     const currentQuiz = quizRef.current;
     if (!currentQuiz) return;
@@ -82,8 +87,12 @@ const TakeQuiz: React.FC = () => {
     const currentAnswers = answersRef.current;
     const answeredCount = Object.keys(currentAnswers).length;
 
-    if (answeredCount < currentQuiz.questions.length) {
-      if (!window.confirm('You have not answered all questions. Submit anyway?')) return;
+    // Skip confirm dialog on auto-submit (time expired)
+    if (!autoSubmit && answeredCount < currentQuiz.questions.length) {
+      const confirmed = await notify.confirm(
+        'You have not answered all questions. Submit anyway?'
+      );
+      if (!confirmed) return;
     }
 
     submittedRef.current = true;
@@ -92,19 +101,26 @@ const TakeQuiz: React.FC = () => {
     try {
       const payload = currentQuiz.questions.map((q) => ({
         questionId: q._id,
-        selectedAnswer: currentAnswers[q._id] || null
+        selectedAnswer: currentAnswers[q._id] ?? null,
       }));
+
       const res = await axios.post(
         `/api/quizzes/course/${courseId}/submit`,
         { answers: payload }
       );
-      setResult(res.data.data);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        alert(err.response?.data?.message || 'Failed to submit quiz');
+      const resData = res.data.data as QuizResult;
+      setResult(resData);
+
+      if (resData.passed) {
+        notify.success('🎉 Passed! Certificate issued.');
       } else {
-        alert('Failed to submit quiz');
+        notify.error('Not passed — try again!');
       }
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err)
+        ? err.response?.data?.message || 'Failed to submit quiz'
+        : 'Failed to submit quiz';
+      notify.error(msg);
       submittedRef.current = false;
     } finally {
       setSubmitting(false);
@@ -114,22 +130,32 @@ const TakeQuiz: React.FC = () => {
   // ─── Timer ───
   useEffect(() => {
     if (!quiz || !quiz.duration || result) return;
+    if (submittedRef.current) return;
 
-    const timer = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(timer);
-          handleSubmit();
+          if (timerRef.current) clearInterval(timerRef.current);
+          void handleSubmit(true);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [quiz, result, handleSubmit]);
 
-  // ✅ Select answer by OPTION TEXT (not index)
+  // Stop timer once result is set
+  useEffect(() => {
+    if (result && timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, [result]);
+
   const selectAnswer = (questionId: string, optionText: string) => {
     const updated = { ...answers, [questionId]: optionText };
     setAnswers(updated);
@@ -156,10 +182,10 @@ const TakeQuiz: React.FC = () => {
   if (error) {
     return (
       <Container className="py-5" style={{ maxWidth: 600 }}>
-        <Card className="text-center p-5" style={{ borderRadius: 20, border: 'none' }}>
+        <Card className="text-center p-5 card-modern">
           <FaTimesCircle size={48} color="#f56565" />
           <h4 className="mt-3">Quiz Not Available</h4>
-          <p className="text-muted">{error}</p>
+          <p style={{ color: 'var(--text-secondary)' }}>{error}</p>
           <Button variant="primary" onClick={() => navigate(`/courses/${courseId}`)}>
             <FaArrowLeft /> Back to Course
           </Button>
@@ -172,8 +198,7 @@ const TakeQuiz: React.FC = () => {
   if (result) {
     return (
       <Container className="py-5" style={{ maxWidth: 600 }}>
-        <Card className="text-center p-5 shadow-sm"
-          style={{ borderRadius: 20, border: 'none' }}>
+        <Card className="text-center p-5 card-modern">
           {result.passed ? (
             <FaTrophy size={64} color="#48bb78" />
           ) : (
@@ -184,17 +209,19 @@ const TakeQuiz: React.FC = () => {
           </h2>
 
           <div className="my-4">
-            <h1 style={{
-              fontSize: '3rem',
-              fontWeight: 800,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text'
-            }}>
+            <h1
+              style={{
+                fontSize: '3rem',
+                fontWeight: 800,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
               {result.percentage}%
             </h1>
-            <p className="text-muted">
+            <p style={{ color: 'var(--text-secondary)' }}>
               {result.score} / {result.totalPoints} points
             </p>
             <Badge bg="info">Passing score: {result.passingScore}%</Badge>
@@ -208,7 +235,7 @@ const TakeQuiz: React.FC = () => {
             </Alert>
           )}
 
-          <div className="d-flex gap-2 justify-content-center mt-3">
+          <div className="d-flex gap-2 justify-content-center mt-3 flex-wrap">
             <Button variant="primary" onClick={() => navigate(`/courses/${courseId}`)}>
               <FaArrowLeft /> Back to Course
             </Button>
@@ -228,7 +255,7 @@ const TakeQuiz: React.FC = () => {
     );
   }
 
-  // ─── Guard ───
+  // ─── No questions ───
   if (!quiz || !quiz.questions || quiz.questions.length === 0) {
     return (
       <Container className="py-5">
@@ -237,6 +264,7 @@ const TakeQuiz: React.FC = () => {
     );
   }
 
+  // ─── Quiz running ───
   const question = quiz.questions[currentIndex];
   const progress = ((currentIndex + 1) / quiz.questions.length) * 100;
   const answeredCount = Object.keys(answers).length;
@@ -245,17 +273,19 @@ const TakeQuiz: React.FC = () => {
 
   return (
     <Container className="py-4" style={{ maxWidth: 800 }}>
-      {/* Header */}
-      <Card className="mb-4" style={{ borderRadius: 16, border: 'none' }}>
+      <Card className="mb-4 card-modern">
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
               <h3 className="mb-1" style={{ fontWeight: 700 }}>{quiz.title}</h3>
-              <small className="text-muted">{quiz.description}</small>
+              <small style={{ color: 'var(--text-muted)' }}>{quiz.description}</small>
             </div>
             {quiz.duration > 0 && (
-              <Badge bg={timeLeft < 60 ? 'danger' : 'warning'} text="dark"
-                style={{ fontSize: '1rem', padding: '10px 16px', borderRadius: 10 }}>
+              <Badge
+                bg={timeLeft < 60 ? 'danger' : 'warning'}
+                text="dark"
+                style={{ fontSize: '1rem', padding: '10px 16px', borderRadius: 10 }}
+              >
                 <FaClock /> {formatTime(timeLeft)}
               </Badge>
             )}
@@ -271,15 +301,16 @@ const TakeQuiz: React.FC = () => {
         </Card.Body>
       </Card>
 
-      {/* Question */}
-      <Card className="mb-4 shadow-sm" style={{ borderRadius: 20, border: 'none' }}>
+      <Card className="mb-4 card-modern">
         <Card.Body className="p-4">
           <div className="d-flex align-items-center mb-3">
-            <Badge bg="primary"
-              style={{ fontSize: '1rem', padding: '8px 14px', borderRadius: 10 }}>
+            <Badge
+              bg="primary"
+              style={{ fontSize: '1rem', padding: '8px 14px', borderRadius: 10 }}
+            >
               Q{currentIndex + 1}
             </Badge>
-            <span className="ms-2 small text-muted">
+            <span className="ms-2 small" style={{ color: 'var(--text-muted)' }}>
               {question.points} point{question.points !== 1 ? 's' : ''}
             </span>
           </div>
@@ -290,7 +321,6 @@ const TakeQuiz: React.FC = () => {
 
           <div className="d-flex flex-column gap-2">
             {question.options.map((option, idx) => {
-              // ✅ Compare with OPTION TEXT
               const selected = answers[question._id] === option;
               return (
                 <button
@@ -299,27 +329,32 @@ const TakeQuiz: React.FC = () => {
                   onClick={() => selectAnswer(question._id, option)}
                   className="btn text-start p-3"
                   style={{
-                    border: `2px solid ${selected ? '#667eea' : '#e2e8f0'}`,
+                    border: `2px solid ${selected ? '#667eea' : 'var(--border-color)'}`,
                     borderRadius: 12,
-                    background: selected ? 'rgba(102,126,234,0.08)' : 'white',
+                    background: selected
+                      ? 'rgba(102,126,234,0.12)'
+                      : 'var(--bg-card)',
+                    color: 'var(--text-primary)',
                     transition: 'all 0.2s',
                     fontSize: '1rem',
-                    fontWeight: selected ? 600 : 400
+                    fontWeight: selected ? 600 : 400,
                   }}
                 >
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: selected ? '#667eea' : '#edf2f7',
-                    color: selected ? 'white' : '#4a5568',
-                    marginRight: 12,
-                    fontSize: '0.85rem',
-                    fontWeight: 700
-                  }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: selected ? '#667eea' : 'var(--bg-secondary)',
+                      color: selected ? 'white' : 'var(--text-secondary)',
+                      marginRight: 12,
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                    }}
+                  >
                     {String.fromCharCode(65 + idx)}
                   </span>
                   {option}
@@ -330,23 +365,31 @@ const TakeQuiz: React.FC = () => {
         </Card.Body>
       </Card>
 
-      {/* Navigation */}
       <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <Button variant="outline-secondary"
+        <Button
+          variant="outline-secondary"
           onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-          disabled={currentIndex === 0}>
+          disabled={currentIndex === 0 || submitting}
+        >
           <FaArrowLeft /> Previous
         </Button>
 
         <div className="d-flex gap-2">
           {!isLastQuestion && (
-            <Button variant="primary"
-              onClick={() => setCurrentIndex(currentIndex + 1)}>
+            <Button
+              variant="primary"
+              onClick={() => setCurrentIndex(currentIndex + 1)}
+              disabled={submitting}
+            >
               Next
             </Button>
           )}
           {isLastQuestion && (
-            <Button variant="success" onClick={handleSubmit} disabled={submitting}>
+            <Button
+              variant="success"
+              onClick={() => void handleSubmit(false)}
+              disabled={submitting}
+            >
               {submitting ? (
                 <><Spinner size="sm" animation="border" /> Submitting…</>
               ) : (
@@ -359,8 +402,16 @@ const TakeQuiz: React.FC = () => {
 
       {!isLastQuestion && allAnswered && (
         <div className="text-center mt-3">
-          <Button variant="success" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? 'Submitting…' : <><FaCheckCircle /> Submit Quiz</>}
+          <Button
+            variant="success"
+            onClick={() => void handleSubmit(false)}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <><Spinner size="sm" animation="border" /> Submitting…</>
+            ) : (
+              <><FaCheckCircle /> Submit Quiz</>
+            )}
           </Button>
         </div>
       )}

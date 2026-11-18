@@ -26,6 +26,7 @@
     "multer": "^2.5.0",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^10.3.1",
+    "puppeteer": "^24.43.1",
     "stripe": "^23.1.0",
     "zod": "^3.24.1"
   },

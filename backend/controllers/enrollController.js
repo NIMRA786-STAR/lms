@@ -1,5 +1,6 @@
 const Enrollment = require('../models/Enrollment');
 const Course = require('../models/Course');
+const { sendEnrollmentEmail } = require('../utils/emailService');
 
 // @desc    Enroll in course
 // @route   POST /api/enroll
@@ -38,6 +39,14 @@ const enrollCourse = async (req, res) => {
       course.enrolledStudents.push(req.user._id);
       await course.save();
     }
+
+    sendEnrollmentEmail({
+  to: req.user.email,
+  studentName: req.user.name,
+  courseTitle: course.title,
+  courseId: course._id,
+  isPaid: false,
+}).catch(() => {});
 
     res.status(201).json({
       success: true,

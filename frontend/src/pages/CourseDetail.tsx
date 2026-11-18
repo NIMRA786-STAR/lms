@@ -11,6 +11,7 @@ import IconButton from '../components/IconButton';
 import CourseContent from '../components/CourseContent';
 import QuizSection from '../components/QuizSection';
 import type { Course, Enrollment, Lesson } from '../types';
+import { notify } from '../utils/notify';
 import {
   FaArrowLeft, FaCheck, FaCheckCircle, FaCreditCard, FaClock,
   FaGraduationCap, FaPlay, FaTrophy, FaLock, FaBookOpen,
@@ -83,7 +84,7 @@ const CourseDetail: React.FC = () => {
   const handleEnroll = async () => {
     if (!user) return navigate('/login');
     if (user.role !== 'student') {
-      alert('Only students can enroll in courses');
+      notify.warning('Only students can enroll in courses');
       return;
     }
 
@@ -97,7 +98,7 @@ const CourseDetail: React.FC = () => {
         const msg = axios.isAxiosError(err)
           ? err.response?.data?.message
           : 'Failed to start checkout';
-        alert(msg || 'Failed to start checkout');
+        notify.error(msg || 'Failed to start checkout');
         setEnrolling(false);
       }
       return;
@@ -108,11 +109,12 @@ const CourseDetail: React.FC = () => {
     try {
       const res = await axios.post<{ data: Enrollment }>('/api/enroll', { courseId: id });
       setEnrollment(res.data.data);
+      notify.success('🎉 Successfully enrolled! Start learning now.');
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err)
         ? err.response?.data?.message
         : 'Failed to enroll';
-      alert(msg || 'Failed to enroll');
+      notify.error(msg || 'Failed to enroll');
     } finally {
       setEnrolling(false);
     }
@@ -121,7 +123,7 @@ const CourseDetail: React.FC = () => {
   // ─── Lesson actions ───
   const openVideo = (lesson: Lesson) => {
     if (!enrollment) {
-      alert('Please enroll first to watch lessons');
+      notify.info('Please enroll first to watch lessons');
       return;
     }
     setActiveLesson(lesson);
@@ -131,16 +133,22 @@ const CourseDetail: React.FC = () => {
   const toggleComplete = async (lesson: Lesson) => {
     if (!enrollment) return;
     setTogglingLesson(true);
+    const wasDone = isLessonDone(lesson._id);
     try {
       const res = await axios.post(
         `/api/enroll/${enrollment._id}/lesson/${lesson._id}/toggle`
       );
       setEnrollment({ ...enrollment, ...res.data.data });
+      notify.success(
+        wasDone
+          ? 'Lesson marked as incomplete'
+          : '✅ Lesson completed!'
+      );
     } catch (err: unknown) {
       const msg = axios.isAxiosError(err)
         ? err.response?.data?.message
         : 'Failed to update progress';
-      alert(msg || 'Failed to update progress');
+      notify.error(msg || 'Failed to update progress');
     } finally {
       setTogglingLesson(false);
     }
@@ -223,7 +231,8 @@ const CourseDetail: React.FC = () => {
         {/* ─── MAIN CONTENT ─── */}
         <Col lg={8}>
           <h3 className="section-heading">About this course</h3>
-          <p style={{ color: '#4a5568', lineHeight: 1.8, fontSize: '1.02rem' }}>
+          {/* ✅ Theme-aware text color (dark mode mein bhi readable) */}
+          <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, fontSize: '1.02rem' }}>
             {course.description}
           </p>
 

@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useCourseImage } from '../../hooks/useCourseImage';
 import IconButton from '../../components/IconButton';
 import { FaPlay, FaTrash, FaBookOpen, FaSearch } from 'react-icons/fa';
+import { notify } from '../../utils/notify';
 
 // ─── Sub-component for hook usage ───
 const MyCourseCard: React.FC<{
@@ -84,12 +85,16 @@ const MyCourses = () => {
   };
 
   const handleDropCourse = async (enrollmentId: string, courseTitle: string) => {
-    if (!window.confirm(`Drop "${courseTitle}"? You will lose all progress.`)) return;
+    const confirmed = await notify.confirm(
+      `Drop "${courseTitle}"? You will lose all progress.`
+    );
+    if (!confirmed) return;
     try {
       await axios.delete(`/api/enroll/${enrollmentId}`);
+      notify.success('Course dropped successfully');
       fetchMyCourses();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to drop course');
+      notify.error(error.response?.data?.message || 'Failed to drop course');
     }
   };
 

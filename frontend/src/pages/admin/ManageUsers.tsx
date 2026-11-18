@@ -3,13 +3,18 @@ import { Container, Table, Spinner, Alert, Modal, Form } from 'react-bootstrap';
 import axios from 'axios';
 import IconButton from '../../components/IconButton';
 import { FaUserEdit, FaTrash, FaUserShield } from 'react-icons/fa';
+import { notify } from '../../utils/notify';
+
+interface UserRow {
+  _id: string; name: string; email: string; role: string; createdAt: string;
+}
 
 const ManageUsers = () => {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -19,45 +24,48 @@ const ManageUsers = () => {
       setUsers(res.data.data);
     } catch {
       setError('Failed to fetch users');
-    } finally {
-      setLoading(false);
-    }
+      notify.error('Failed to fetch users');
+    } finally { setLoading(false); }
   };
 
-  const handleDeleteUser = async (userId, userName) => {
-    if (!window.confirm(`Delete user "${userName}"?`)) return;
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    const ok = await notify.confirm(`Delete user "${userName}"? This cannot be undone.`);
+    if (!ok) return;
     try {
       await axios.delete(`/api/users/${userId}`);
+      notify.success('User deleted');
       fetchUsers();
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete');
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message : 'Failed to delete';
+      notify.error(msg || 'Failed to delete');
     }
   };
 
   const handleUpdateRole = async () => {
+    if (!selectedUser) return;
     try {
       await axios.put(`/api/users/${selectedUser._id}`, { role: selectedUser.role });
+      notify.success('Role updated successfully');
       setShowModal(false);
       fetchUsers();
-    } catch { alert('Failed to update role'); }
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.message : 'Failed to update role';
+      notify.error(msg || 'Failed to update role');
+    }
   };
 
   if (loading) return (
-    <Container className="text-center py-5">
-      <Spinner animation="border" variant="primary" />
-    </Container>
+    <Container className="text-center py-5"><Spinner animation="border" variant="primary" /></Container>
   );
 
   return (
     <Container className="py-4">
-      <h2 className="mb-4">Manage Users</h2>
+      <h2 className="section-heading mb-4">Manage Users</h2>
       {error && <Alert variant="danger">{error}</Alert>}
 
       <Table responsive hover>
-        <thead style={{ background: '#f7fafc' }}>
-          <tr>
-            <th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th>
-          </tr>
+        <thead style={{ background: 'var(--bg-secondary)' }}>
+          <tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr>
         </thead>
         <tbody>
           {users.map((user, index) => (
@@ -93,8 +101,8 @@ const ManageUsers = () => {
           <p>User: <strong>{selectedUser?.name}</strong></p>
           <Form.Group>
             <Form.Label>New Role</Form.Label>
-            <Form.Select value={selectedUser?.role}
-              onChange={(e) => setSelectedUser({ ...selectedUser, role: e.target.value })}>
+            <Form.Select value={selectedUser?.role ?? 'student'}
+              onChange={(e) => selectedUser && setSelectedUser({ ...selectedUser, role: e.target.value })}>
               <option value="student">Student</option>
               <option value="instructor">Instructor</option>
               <option value="admin">Admin</option>

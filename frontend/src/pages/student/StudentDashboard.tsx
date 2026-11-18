@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useCourseImage } from '../../hooks/useCourseImage';
 import IconButton from '../../components/IconButton';
+import { notify } from '../../utils/notify';
 import {
   FaGraduationCap, FaCheckCircle, FaChartLine, FaPlay,
   FaArrowRight, FaBook, FaTrophy
@@ -108,7 +109,7 @@ const StudentDashboard = () => {
           .slice(0, 3)
       );
 
-      // ✅ Certificates fetch
+      // Certificates fetch
       try {
         const certsRes = await axios.get('/api/certificates/my');
         setCertificates(certsRes.data.data || []);
@@ -116,7 +117,10 @@ const StudentDashboard = () => {
         setCertificates([]);
       }
     } catch (error: any) {
-      if (error.response?.status === 401) window.location.href = '/login';
+      if (error.response?.status === 401) {
+        notify.error('Session expired. Please login again.');
+        setTimeout(() => (window.location.href = '/login'), 800);
+      }
     } finally {
       setLoading(false);
     }
@@ -184,7 +188,6 @@ const StudentDashboard = () => {
         </Row>
       )}
 
-      {/* ✅ Certificates Section */}
       {certificates.length > 0 && (
         <>
           <div className="d-flex justify-content-between align-items-center mb-3 mt-4">

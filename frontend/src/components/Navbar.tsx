@@ -2,14 +2,17 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Navbar, Nav, Container } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import IconButton from './IconButton';
 import {
   FaHome, FaBook, FaInfoCircle, FaUser, FaSignOutAlt,
-  FaSignInAlt, FaUserPlus, FaTachometerAlt, FaTrophy
+  FaSignInAlt, FaUserPlus, FaTachometerAlt, FaTrophy,
+  FaMoon, FaSun
 } from 'react-icons/fa';
 
 const NavigationBar: React.FC = () => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -39,13 +42,22 @@ const NavigationBar: React.FC = () => {
             <Nav.Link as={Link} to="/about"><FaInfoCircle /> About</Nav.Link>
           </Nav>
           <Nav className="align-items-center gap-2">
+            {/* 🌗 Dark mode toggle */}
+            <button
+              className="theme-toggle-btn"
+              onClick={toggleTheme}
+              aria-label="Toggle dark mode"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <FaSun /> : <FaMoon />}
+            </button>
+
             {user ? (
               <>
                 <Nav.Link as={Link} to={dashboardPath}>
                   <FaTachometerAlt /> Dashboard
                 </Nav.Link>
 
-                {/* ─── Certificates (Students only) ─── */}
                 {user.role === 'student' && (
                   <Nav.Link as={Link} to="/my-certificates">
                     <FaTrophy /> Certificates

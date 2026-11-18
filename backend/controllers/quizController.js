@@ -3,6 +3,8 @@ const QuizAttempt = require('../models/QuizAttempt');
 const Enrollment = require('../models/Enrollment');
 const Certificate = require('../models/Certificate');
 const crypto = require('crypto');
+const { sendCertificateEmail } = require('../utils/emailService');
+const { generateCertificatePdf } = require('../utils/certificatePdf');
 
 // ─── INSTRUCTOR: Create or update quiz ───
 const upsertQuiz = async (req, res) => {
@@ -184,6 +186,38 @@ const submitQuiz = async (req, res) => {
         certificateIssued = true;
       }
     }
+
+    if (certificateIssued) {
+  // Fire-and-forget — quiz response block na ho
+  (async () => {
+    try {
+      const certDoc = await Certificate.findOne({
+        student: req.user._id,
+        course: courseId,
+      });
+      const course = await Course.findById(courseId).select('title');
+      const pdfBuffer = await generateCertificatePdf({
+        studentName: req.user.name,
+        courseTitle: course?.title || 'Course',
+        score: percentage,
+        certificateId: certDoc.certificateId,
+        issuedDate: new Date(certDoc.issuedAt).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'long', day: 'numeric',
+        }),
+      });
+      await sendCertificateEmail({
+        to: req.user.email,
+        studentName: req.user.name,
+        courseTitle: course?.title || 'Course',
+        score: percentage,
+        certificateId: certDoc.certificateId,
+        pdfBuffer,
+      });
+    } catch (err) {
+      console.error('Certificate email pipeline failed:', err.message);
+    }
+  })();
+}
 
     res.json({
       success: true,
